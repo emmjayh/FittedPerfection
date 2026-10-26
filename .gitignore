@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# Machine-specific settings; the template is config.example.json
+config.json
+
+# API keys; the template is secrets.example.env
+secrets.env
+
+# Run outputs and frozen code copies stay on disk, not in git
+runs/
+frozen/
+
+# OS
+Thumbs.db
+desktop.ini
+
+# Outfit archives (large; listed with hashes in outfits/manifest.json)
+outfits/**/*.zip

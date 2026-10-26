@@ -1,0 +1,65 @@
+{
+  "description": "Generator archives (Trellis/Pixal3D: OBJ or FBX + texture_diffuse.png) used as LOOM test inputs. dev = development set. test-fits = held out: never used while developing, only for test fits.",
+  "outfits": {
+    "baddietanknoarms": {
+      "split": "dev",
+      "file": "outfits/dev/baddietanknoarms.zip",
+      "sha256": "46c625f95223d5d09e69d35702ff2b5454928ee207c3b9d9b11c681ea9c19985",
+      "bytes": 135533258
+    },
+    "blackpantsgreentop": {
+      "split": "dev",
+      "file": "outfits/dev/blackpantsgreentop.zip",
+      "sha256": "4d1bdac3941e85921136c11b0ffd1215d822469ca6bb229f88b95b9daab57d1c",
+      "bytes": 122171225
+    },
+    "blackshirtsuspenderjeans": {
+      "split": "dev",
+      "file": "outfits/dev/blackshirtsuspenderjeans.zip",
+      "sha256": "bbf78f2fadfb851bf2bf954e015b84a47d9b0e3a01fac6a7b9a8b7e04788119c",
+      "bytes": 85405460
+    },
+    "bluetiebaggypants": {
+      "split": "dev",
+      "file": "outfits/dev/bluetiebaggypants.zip",
+      "sha256": "fdba5c42f098b25ed588b6849bbcf06d3ef2e916eabdf505c3fc870e186faf07",
+      "bytes": 124250134
+    },
+    "hallowewenbaddie": {
+      "split": "dev",
+      "file": "outfits/dev/hallowewenbaddie.zip",
+      "sha256": "fe367acb5bea8cd188fe20048f8cfcb2fa7d9baa5bd7fd5661edec269303f47b",
+      "bytes": 132059854
+    },
+    "moonshorts": {
+      "split": "dev",
+      "file": "outfits/dev/moonshorts.zip",
+      "sha256": "e33fe095a0ab42b797cab034f83bca96d7931ddfea474c52914b09186659e0b4",
+      "bytes": 79294361
+    },
+    "atumnpuffelin": {
+      "split": "test-fits",
+      "file": "outfits/test-fits/atumnpuffelin.zip",
+      "sha256": "23b809d9a52953ce8b3ebf75ceaee5c4ba2ee89acd6f400a581da5dffaedd892",
+      "bytes": 126256029
+    },
+    "floatycloudoutfitfem": {
+      "split": "test-fits",
+      "file": "outfits/test-fits/floatycloudoutfitfem.zip",
+      "sha256": "fbf38aad2b9490cbfd72174caa0d3647add57998469a51a18692d1090ed38074",
+      "bytes": 149760915
+    },
+    "piratecloakgoldpatern": {
+      "split": "test-fits",
+      "file": "outfits/test-fits/piratecloakgoldpatern.zip",
+      "sha256": "b1093781819103972525b6f7bca473ba05ff1c71b331bedfd77aaf002df19675",
+      "bytes": 277392688
+    },
+    "purpleshorts": {
+      "split": "test-fits",
+      "file": "outfits/test-fits/purpleshorts.zip",
+      "sha256": "1b009e361dc106b5495212ba8bbe65cc5db71a64210cc7a9931d2c35bdef9474",
+      "bytes": 95689111
+    }
+  }
+}
