@@ -5,8 +5,11 @@ its own rig. The fit is local, deterministic maths. Meta's SAM 3.1 labels the ou
 beforehand, and Muse Wonder reviews the results afterwards. Every fit is a draft until a
 person reviews it. Full spec: [docs/SPEC.md](docs/SPEC.md).
 
-**Status:** build step 1 (foundations) is done. The seven stages are declared but not built
-yet, so a run stops at `intake`.
+**Status:** steps 1–2 are done (foundations, target bodies) and step 3 is under way. **Intake**
+is built: it unpacks the archive safely, reads which way the outfit faces from its feet, and
+writes `full/GARMENT.glb` (every face) plus `full/CAGE.glb` (about 40k faces) in the canonical
+frame. Feet partly hidden by cloth give a *provisional* facing, which bind must confirm from
+the shoe labels. The later stages aren't built yet, so a run stops after intake.
 
 ## Setup
 

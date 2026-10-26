@@ -1,5 +1,6 @@
 """Command line: outfits by name, the held-out test fits, and a smoke run that stops at intake."""
 import json
+import zipfile
 
 import pytest
 
@@ -12,7 +13,8 @@ def project(home, tmp_path):
     for split, name in (('dev', 'moon'), ('test-fits', 'cloak')):
         archive = home/'outfits'/split/f'{name}.zip'
         archive.parent.mkdir(parents=True, exist_ok=True)
-        archive.write_bytes(f'{name} bytes'.encode())
+        with zipfile.ZipFile(archive, 'w') as bundle:      # a texture but no mesh: intake refuses it
+            bundle.writestr('texture_diffuse.png', f'{name} texture')
     manifest = {'outfits': {
         name: {'split': split, 'file': f'outfits/{split}/{name}.zip',
                'sha256': file_sha256(home/'outfits'/split/f'{name}.zip'), 'bytes': 11}
@@ -26,7 +28,7 @@ def project(home, tmp_path):
 
 def test_smoke_run_stops_at_intake(project, capsys):
     assert main(['run', 'moon']) == 1
-    assert 'not built yet' in capsys.readouterr().err
+    assert 'no OBJ or FBX' in capsys.readouterr().err
     state = json.loads((project/'runs/moon/run.json').read_text())
     assert state['status'] == 'stopped_at_intake' and (project/'runs/moon/live.html').is_file()
     assert main(['status', 'moon']) == 0

@@ -9,6 +9,7 @@ These decisions override the original text below where they differ.
 
 - **No prototype code.** Nothing from the prototype is copied or adapted: no code, styles,
   configs, venvs or results. Everything is written new.
+- **Generators:** outfits may come from Trellis, Pixal3D or Rodin.
 - **Test outfits** are the 10 generator archives in `outfits/` (see `outfits/manifest.json`):
   6 in `dev/` for development, 4 in `test-fits/` held out for test fits only.
 - **SAM 3.1 runs through the Meta Model API**, not locally. It needs no venv, local weights or

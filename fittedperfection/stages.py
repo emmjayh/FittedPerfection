@@ -4,6 +4,7 @@ Each stage is declared here once: its folder, what it reads and the code that
 implements it. A stage that is not built yet stops the run and names the
 build step that adds it; its `code` entry is filled in when it is built.
 """
+from . import intake
 from .run import Stage
 
 
@@ -14,7 +15,8 @@ def not_built(step):
 
 
 PIPELINE = (
-    Stage('intake', 'full', not_built(3), garment=True, settings=('intake',), tools=('blender',)),
+    Stage('intake', 'full', intake.run, code=intake.CODE, garment=True, settings=('intake',),
+          tools=('blender',)),
     Stage('views', 'analysis/views', not_built(3), needs=('intake',), settings=('views',),
           tools=('blender',)),
     Stage('vision', 'analysis/vision', not_built(3), needs=('views',), settings=('vision',),

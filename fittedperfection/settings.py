@@ -15,6 +15,11 @@ _VALUES = {
         'cage_faces': 40_000,
         # Canonical frame (spec §5.1): Z up, garment forward -Y, garment's own left +X.
         'frame': {'up': [0, 0, 1], 'forward': [0, -1, 0], 'left': [1, 0, 0]},
+        # Facing from the feet (fittedperfection/orientation.py). Bands are fractions of height;
+        # below min_ratio (but above provisional_min_ratio) the facing is provisional and bind
+        # must confirm it from the footwear labels.
+        'orientation': {'foot_band': 0.03, 'leg_band': [0.18, 0.26], 'min_leg_gap': 0.05, 'min_leg_clearance': 0.01,
+                        'min_ratio': 1.4, 'provisional_min_ratio': 1.05},
     },
     'views': {
         'calibrated': ['front', 'back', 'left', 'right', 'top', 'bottom'],
