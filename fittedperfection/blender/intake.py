@@ -15,11 +15,13 @@ If the facing is unclear it writes intake.json with the reason and exits with an
 import argparse
 import json
 import math
+import re
 import sys
 from pathlib import Path
 
 import bpy
 import numpy as np
+from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from fittedperfection.orientation import OrientationUnclear, facing  # noqa: E402
@@ -53,6 +55,7 @@ def import_joined(path):
     meshes = [o for o in bpy.data.objects if o.type == 'MESH']
     if not meshes:
         raise RuntimeError(f'{path.name} holds no mesh')
+    meshes, dropped = keep_most_detailed(meshes)
     select_only(meshes)
     if len(meshes) > 1:
         bpy.ops.object.join()
@@ -60,7 +63,46 @@ def import_joined(path):
     select_only([garment])
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     garment.name = garment.data.name = 'garment'
-    return garment
+    return garment, dropped
+
+
+def world_box(obj):
+    corners = np.array([obj.matrix_world @ Vector(c) for c in obj.bound_box])
+    return corners.min(axis=0), corners.max(axis=0)
+
+
+def keep_most_detailed(meshes):
+    """Generators can ship several levels of detail of one outfit in one file (model_LOD0..LOD4),
+    stacked in the same place. Joining them would stack copies, so only the most detailed is kept:
+    by name where levels are named, otherwise among meshes that occupy the same space."""
+    named = {}
+    for obj in meshes:
+        match = re.search(r'_?LOD(\d+)$', obj.name, flags=re.IGNORECASE)
+        if match:
+            named.setdefault(re.sub(r'_?LOD\d+$', '', obj.name, flags=re.IGNORECASE), []).append((int(match[1]), obj))
+    dropped = []
+    for _, levels in named.items():
+        if len(levels) > 1:
+            levels.sort(key=lambda item: item[0])
+            dropped += [obj for _, obj in levels[1:]]
+    kept = [obj for obj in meshes if obj not in dropped]
+    by_detail = sorted(kept, key=lambda obj: -len(obj.data.polygons))
+    final = []
+    for obj in by_detail:                         # unnamed copies: same box as a more detailed mesh
+        low, high = world_box(obj)
+        duplicate = False
+        for other in final:
+            other_low, other_high = world_box(other)
+            overlap = np.clip(np.minimum(high, other_high) - np.maximum(low, other_low), 0, None).prod()
+            union = (high - low).prod() + (other_high - other_low).prod() - overlap
+            if union > 0 and overlap / union > 0.97:
+                duplicate = True
+                break
+        (dropped if duplicate else final).append(obj)
+    names = [obj.name for obj in dropped]
+    for obj in dropped:
+        bpy.data.objects.remove(obj, do_unlink=True)
+    return final, names
 
 
 def vertices(obj):
@@ -132,7 +174,8 @@ def main():
     settings = json.loads(args.settings)
     out = Path(args.out)
     report = {'blender': bpy.app.version_string, 'source_mesh': Path(args.mesh).name}
-    garment = import_joined(Path(args.mesh))
+    garment, dropped = import_joined(Path(args.mesh))
+    report['dropped_duplicate_meshes'] = dropped
     points = vertices(garment)
     extent = points.max(axis=0) - points.min(axis=0)
     report.update(source_vertices=len(points), source_triangles=triangle_count(garment),

@@ -10,11 +10,13 @@ Output: masks.npz (one raster per record, box-local) and vision.json (an index o
 records: phrase, class, view, object id, confidence, bounds; plus every request's
 cache key and usage, and the cost estimate).
 """
+import hashlib
 import json
 import re
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
+from PIL import Image
 from meta_sam_parser import CompletedOutcome, decode_mask_to_raster, image_segmentation_format, video_segmentation_format
 
 from . import config, models, secrets, settings, vocabulary
@@ -51,6 +53,20 @@ def parse(kind, text):
     return parsed
 
 
+def image_content_sha(path):
+    """What an image shows: a hash of its decoded pixels, ignoring any file metadata."""
+    pixels = np.asarray(Image.open(path).convert('RGB'))
+    return hashlib.sha256(repr(pixels.shape).encode() + pixels.tobytes()).hexdigest()
+
+
+def video_content_sha(views, orbit_frames, fps):
+    """What the turntable video shows: its frames' decoded pixels in order, and the frame rate."""
+    digest = hashlib.sha256(f'turntable fps={fps}'.encode())
+    for i in range(orbit_frames):
+        digest.update(image_content_sha(views/'color'/f'orbit-{i:03d}.png').encode())
+    return digest.hexdigest()
+
+
 def slug(phrase):
     return re.sub(r'[^a-z0-9]+', '-', phrase.lower()).strip('-')
 
@@ -77,9 +93,13 @@ def run(ctx, out):
     if any(kind == 'video' for _, kind, _, _ in jobs):
         sam.upload(views/record['video'])                   # once, before the parallel requests
 
+    content = {views/record['video']: video_content_sha(views, orbit_frames, record['fps'])}
+    content.update({views/'color'/f'{still}.png': image_content_sha(views/'color'/f'{still}.png')
+                    for still in record['stills']})
+
     def request(job):
         phrase, kind, media, still = job
-        text, info = sam.segment(phrase, media, kind, options)
+        text, info = sam.segment(phrase, media, kind, options, content_sha=content[media])
         return job, text, info
 
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:

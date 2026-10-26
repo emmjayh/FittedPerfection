@@ -81,5 +81,6 @@ def run(ctx, out):
     return {'mesh': mesh, 'source_triangles': report['source_triangles'], 'cage_triangles': report['cage_triangles'],
             'toe_direction': report['facing']['toe_direction'],
             'facing_status': report['facing']['status'],
+            'dropped_duplicate_meshes': report.get('dropped_duplicate_meshes', []),
             'turned_degrees': report['facing']['turn_about_z_degrees'],
             'toe_over_heel_reach': report['facing']['evidence']['toe_over_heel_reach']}

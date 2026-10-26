@@ -15,7 +15,11 @@ turntable as `orbit.mp4` for SAM. Every run checks that each pixel lies on the t
 **Vision** is built: for each of the 42 vocabulary phrases, SAM 3.1 (Meta Model API) segments the
 turntable video, keeping each part's id all the way round, plus the top and bottom stills. That's
 126 requests, about $0.81 per outfit. Every answer is cached in `runs/_cache/sam/`, so reruns are free
-and identical. Label and bind aren't built yet, so a run stops after vision.
+and identical; the cache is keyed by picture content, not file bytes. **Label** is built: it turns
+the masks into one part label per cage face (where masks overlap the smaller one wins; skin is a
+separate layer confirmed by colour). The labels are combined across all views and smoothed over the
+mesh, then rules apply: legs split at the crotch, open torso cloth hangs, trims take their host's
+label, and sides left/right. Bind isn't built yet, so a run stops after label.
 
 ## Setup
 

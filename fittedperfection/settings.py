@@ -34,7 +34,23 @@ _VALUES = {
         'include_confidence': True,
     },
     'label': {
+        # Smoothing over the face graph: links across source seams and creases sharper than
+        # crease_degrees are weakened; faces seen with half_trust_pixels pixels are half trusted.
+        'smoothing': 1.0,
+        'seam_weight': 0.1,
+        'crease_weight': 0.3,
         'crease_degrees': 40.0,
+        'half_trust_pixels': 20.0,
+        'min_score': 0.15,                 # below this best score a face stays 'none'
+        'shell_coverage': 0.7,             # torso slices below the hips wrapping less than this hang
+        # Skin colour check: the limit is spread_factor x the median distance of the upper-body
+        # reference skin from its median tone, and never below min_distance (RGB units).
+        'skin_colour_min_distance': 25.0,
+        'skin_colour_spread_factor': 4.0,
+        'confident_skin_score': 0.5,
+        'leg_covered_share': 0.6,          # a leg band this covered by legwear/footwear turns its skin into it
+        'limb_island_fraction': 0.05,      # islands smaller than this share of a limb take the limb's label
+        'largest_unlabelled_share': 0.05,  # unidentified pieces bigger than this share stay 'none'
     },
     'bind': {
         'min_sleeve_fragment_of_torso': 0.03,

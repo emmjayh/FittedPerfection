@@ -89,12 +89,17 @@ class SamClient:
 
     # -- segmentation -------------------------------------------------------------
 
-    def segment(self, phrase, media_path, kind, options):
-        """Segmentation text for one phrase on one image or video, plus the cache record."""
+    def segment(self, phrase, media_path, kind, options, content_sha=None):
+        """Segmentation text for one phrase on one image or video, plus the cache record.
+
+        content_sha identifies what the media shows (e.g. a hash of its decoded pixels). When given, it
+        keys the cache instead of the file bytes, so a re-encoded file with different metadata but the
+        same pictures is still answered from the cache.
+        """
         if kind not in ('image', 'video'):
             raise ValueError(kind)
         media_path = Path(media_path)
-        media_sha = file_sha256(media_path)
+        media_sha = content_sha or file_sha256(media_path)
         definition = {'model': self.model, 'kind': kind, 'phrase': phrase, 'media_sha256': media_sha,
                       'options': dict(options)}
         key = json_sha256(definition)

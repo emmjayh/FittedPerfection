@@ -61,8 +61,17 @@ def add_face_ids(cage):
     mesh.color_attributes.render_color_index = mesh.color_attributes.find('faceid')
 
 
+def no_metadata(render):
+    """Blender stamps the date, time, host and more into every PNG and video it writes. Identical
+    renders must give identical files (for reuse and for the SAM cache), so all stamps go off."""
+    for name in dir(render):
+        if name.startswith('use_stamp'):
+            setattr(render, name, False)
+
+
 def set_up_scene(size):
     scene = bpy.context.scene
+    no_metadata(scene.render)
     scene.render.engine = 'BLENDER_WORKBENCH'
     scene.render.resolution_x = scene.render.resolution_y = size
     scene.render.resolution_percentage = 100
@@ -114,6 +123,7 @@ def encode_video(frames, fps, size, path):
     for frame in frames[1:]:
         strip.elements.append(frame.name)
     video.frame_start, video.frame_end = 1, len(frames)
+    no_metadata(video.render)
     video.render.fps = fps
     video.render.resolution_x = video.render.resolution_y = size
     video.render.resolution_percentage = 100
