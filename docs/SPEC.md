@@ -1,6 +1,6 @@
-# LOOM build spec
+# FittedPerfection build spec
 
-Spec for a fresh build of LOOM. It describes the methods to use, drawn from the earlier
+Spec for a fresh build of FittedPerfection. It describes the methods to use, drawn from the earlier
 prototype (0.11.0-dev), its docs and its trial history (written 2026-10-26).
 
 ## Changes for this build (2026-10-26)
@@ -29,9 +29,9 @@ These decisions override the original text below where they differ.
 
 ---
 
-## 1. What LOOM is
+## 1. What FittedPerfection is
 
-LOOM fits a generated 3D outfit onto fixed human bodies:
+FittedPerfection fits a generated 3D outfit onto fixed human bodies:
 
 - **Input:** a single textured mesh of an outfit on a mannequin, from Trellis/Pixal3D.
 - **Output:** the outfit on each target body, skinned to that body's own rig.

@@ -1,0 +1,5 @@
+three.js 0.186.1 (MIT, see LICENSE), from the npm registry tarball three-0.186.1.tgz
+(sha256 8cd068708ea44f2c73c944b1cead2ba2f0d5c15c8fc194e5700f4e4f4a033fe7), fetched 2026-10-26.
+Files, unmodified: build/three.module.js, build/three.core.js,
+examples/jsm/controls/OrbitControls.js, examples/jsm/loaders/GLTFLoader.js,
+examples/jsm/utils/BufferGeometryUtils.js, examples/jsm/utils/SkeletonUtils.js

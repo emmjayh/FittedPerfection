@@ -1,5 +1,5 @@
 {
-  "description": "Generator archives (Trellis/Pixal3D: OBJ or FBX + texture_diffuse.png) used as LOOM test inputs. dev = development set. test-fits = held out: never used while developing, only for test fits.",
+  "description": "Generator archives (Trellis/Pixal3D: OBJ or FBX + texture_diffuse.png) used as FittedPerfection test inputs. dev = development set. test-fits = held out: never used while developing, only for test fits.",
   "outfits": {
     "baddietanknoarms": {
       "split": "dev",

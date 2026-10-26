@@ -1,0 +1,53 @@
+"""Command line: outfits by name, the held-out test fits, and a smoke run that stops at intake."""
+import json
+
+import pytest
+
+from fittedperfection.cli import main
+from fittedperfection.hashing import file_sha256
+
+
+@pytest.fixture
+def project(home, tmp_path):
+    for split, name in (('dev', 'moon'), ('test-fits', 'cloak')):
+        archive = home/'outfits'/split/f'{name}.zip'
+        archive.parent.mkdir(parents=True, exist_ok=True)
+        archive.write_bytes(f'{name} bytes'.encode())
+    manifest = {'outfits': {
+        name: {'split': split, 'file': f'outfits/{split}/{name}.zip',
+               'sha256': file_sha256(home/'outfits'/split/f'{name}.zip'), 'bytes': 11}
+        for split, name in (('dev', 'moon'), ('test-fits', 'cloak'))}}
+    (home/'outfits/manifest.json').write_text(json.dumps(manifest))
+    blender = tmp_path/'blender.exe'
+    blender.write_bytes(b'stand-in')
+    (home/'config.json').write_text(json.dumps({'blender': str(blender), 'bodies': 'assets/bodies'}))
+    return home
+
+
+def test_smoke_run_stops_at_intake(project, capsys):
+    assert main(['run', 'moon']) == 1
+    assert 'not built yet' in capsys.readouterr().err
+    state = json.loads((project/'runs/moon/run.json').read_text())
+    assert state['status'] == 'stopped_at_intake' and (project/'runs/moon/live.html').is_file()
+    assert main(['status', 'moon']) == 0
+    assert 'stopped_at_intake' in capsys.readouterr().out
+
+
+def test_test_fits_need_the_flag(project, capsys):
+    assert main(['run', 'cloak']) == 1
+    assert 'held out' in capsys.readouterr().err
+    assert not (project/'runs/cloak').exists()
+    assert main(['run', 'cloak', '--test-fit']) == 1          # allowed; stops at intake
+    assert (project/'runs/cloak/run.json').is_file()
+
+
+def test_changed_archive_is_refused(project, capsys):
+    (project/'outfits/dev/moon.zip').write_bytes(b'tampered')
+    assert main(['run', 'moon']) == 1
+    assert 'no longer matches' in capsys.readouterr().err
+
+
+def test_outfits_listing(project, capsys):
+    assert main(['outfits']) == 0
+    out = capsys.readouterr().out
+    assert 'dev' in out and 'moon' in out and 'test-fits' in out

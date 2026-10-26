@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>FittedPerfection review</title>
+  <link rel="stylesheet" href="viewer.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+  </script>
+</head>
+<body>
+  <nav id="controls">
+    <header>
+      <h1>FittedPerfection review</h1>
+      <p class="hint">Drafts only. Nothing is accepted until you have reviewed it.</p>
+    </header>
+
+    <fieldset>
+      <legend>Fit</legend>
+      <label>Outfit <select id="pick-outfit"></select></label>
+      <label>Version <select id="pick-version"></select></label>
+      <label>Compare with <select id="pick-compare"></select></label>
+      <label>Body <select id="pick-body"></select></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Body</legend>
+      <div class="toggle" data-group="body">
+        <button data-value="skin" class="active">Skin</button>
+        <button data-value="xray">X-ray</button>
+        <button data-value="off">Off</button>
+      </div>
+      <legend class="sub">Outfit</legend>
+      <div class="toggle" data-group="outfit">
+        <button data-value="texture" class="active">Texture</button>
+        <button data-value="plain">Plain</button>
+        <button data-value="off">Off</button>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Camera</legend>
+      <div class="cameras">
+        <button data-camera="front">Front</button>
+        <button data-camera="three-quarter">3/4</button>
+        <button data-camera="side">Side</button>
+        <button data-camera="back">Back</button>
+      </div>
+    </fieldset>
+
+    <output id="status"></output>
+  </nav>
+
+  <main id="stage">
+    <div class="label" id="label-a"></div>
+    <div class="label right" id="label-b"></div>
+    <div class="draft-flag">DRAFT · fit_reviewed: false</div>
+  </main>
+
+  <aside id="side">
+    <h2>Source</h2>
+    <div id="source"></div>
+    <h2>Report</h2>
+    <pre id="report">–</pre>
+  </aside>
+
+  <script type="module" src="viewer.js"></script>
+</body>
+</html>
