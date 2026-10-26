@@ -1,7 +1,7 @@
 {
   "made": "2026-10-26T14:29:20-04:00",
-  "status": "draft_for_review",
-  "reviewed": false,
+  "status": "reviewed",
+  "reviewed": true,
   "mpfb": {
     "version": "2.0.18",
     "zip": "add-on-mpfb-v2.0.18.zip",
@@ -388,5 +388,10 @@
     "temporalis02.R",
     "risorius02.R",
     "risorius03.R"
-  ]
+  ],
+  "review": {
+    "by": "project owner",
+    "date": "2026-10-26",
+    "notes": "approved front and side; short heavy reads moderately heavy at MPFB maximum weight"
+  }
 }
