@@ -1,6 +1,6 @@
 # FittedPerfection
 
-Fits a generated 3D outfit (Trellis/Pixal3D) onto four fixed MPFB bodies, each skinned to
+Fits a generated 3D outfit (Trellis/Pixal3D/Rodin) onto four fixed MPFB bodies, each skinned to
 its own rig. The fit is local, deterministic maths. Meta's SAM 3.1 labels the outfit's parts
 beforehand, and Muse Wonder reviews the results afterwards. Every fit is a draft until a
 person reviews it. Full spec: [docs/SPEC.md](docs/SPEC.md).
