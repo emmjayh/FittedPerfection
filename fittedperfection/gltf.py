@@ -130,3 +130,49 @@ def read_skinned_mesh(path):
         bone_parents=parents,
         bone_matrices=np.stack([world[n] for n in joint_nodes]),
     )
+
+
+@dataclass
+class TexturedMesh:
+    positions: np.ndarray        # (V, 3) float64, canonical frame: Z up, front -Y, own left +X
+    triangles: np.ndarray        # (T, 3) int64
+    uvs: np.ndarray              # (V, 2) float64, glTF convention (v down from the top of the image)
+    texture_png: bytes | None    # the base-colour image, if embedded
+
+
+def gltf_to_canonical(points):
+    """glTF (+Y up, front +Z) -> the canonical Blender frame (+Z up, front -Y): (x, y, z) -> (x, -z, y)."""
+    points = np.asarray(points, dtype=np.float64)
+    return np.column_stack([points[:, 0], -points[:, 2], points[:, 1]])
+
+
+def read_textured_mesh(path):
+    """A plain (unskinned) single-primitive mesh, such as an intake GARMENT.glb or CAGE.glb."""
+    document, binary = read_glb(path)
+    nodes = [node for node in document.get('nodes', []) if 'mesh' in node]
+    if len(nodes) != 1:
+        raise GLBError(f'{path}: expected one mesh, found {len(nodes)}')
+    world, _ = _world_matrices(document)
+    matrix = world[document['nodes'].index(nodes[0])]
+    primitives = document['meshes'][nodes[0]['mesh']]['primitives']
+    if len(primitives) != 1:
+        raise GLBError(f'{path}: expected one primitive, found {len(primitives)}')
+    primitive = primitives[0]
+    attributes = primitive['attributes']
+    positions = _accessor(document, binary, attributes['POSITION'])
+    positions = positions @ matrix[:3, :3].T + matrix[:3, 3]
+    texture = None
+    material = document.get('materials', [{}])[primitive['material']] if 'material' in primitive else {}
+    colour = material.get('pbrMetallicRoughness', {}).get('baseColorTexture')
+    if colour is not None:
+        image = document['images'][document['textures'][colour['index']]['source']]
+        view = document['bufferViews'][image['bufferView']]
+        start = view.get('byteOffset', 0)
+        texture = bytes(binary[start:start + view['byteLength']])
+    return TexturedMesh(
+        positions=gltf_to_canonical(positions),
+        triangles=_accessor(document, binary, primitive['indices']).reshape(-1, 3),
+        uvs=_accessor(document, binary, attributes['TEXCOORD_0']) if 'TEXCOORD_0' in attributes else
+        np.zeros((len(positions), 2)),
+        texture_png=texture,
+    )

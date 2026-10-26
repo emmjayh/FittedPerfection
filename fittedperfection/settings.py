@@ -22,9 +22,11 @@ _VALUES = {
                         'min_ratio': 1.4, 'provisional_min_ratio': 1.05},
     },
     'views': {
-        'calibrated': ['front', 'back', 'left', 'right', 'top', 'bottom'],
+        # Turntable of orbit_frames around the vertical axis (frames 0, n/4, n/2, 3n/4 are front, left,
+        # back, right) plus top and bottom stills, square images; the turntable also as an MP4 at fps.
         'image_size': 1024,
         'orbit_frames': 72,
+        'fps': 24,
     },
     'vision': {
         'vocabulary_version': 5,

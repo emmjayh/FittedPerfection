@@ -9,7 +9,10 @@ person reviews it. Full spec: [docs/SPEC.md](docs/SPEC.md).
 is built: it unpacks the archive safely, reads which way the outfit faces from its feet, and
 writes `full/GARMENT.glb` (every face) plus `full/CAGE.glb` (about 40k faces) in the canonical
 frame. Feet partly hidden by cloth give a *provisional* facing, which bind must confirm from
-the shoe labels. The later stages aren't built yet, so a run stops after intake.
+the shoe labels. **Views** is built too: a 72-frame orthographic turntable plus top and bottom stills of
+the cage, each with a face-ID image (which cage triangle is visible at every pixel), and the
+turntable as `orbit.mp4` for SAM. Every run checks that each pixel lies on the triangle it names.
+The later stages aren't built yet, so a run stops after views.
 
 ## Setup
 
