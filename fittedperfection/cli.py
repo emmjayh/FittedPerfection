@@ -62,6 +62,16 @@ def cmd_freeze(args):
     return 0
 
 
+def cmd_bodies_make(args):
+    from .bodies import make
+    folder, record = make(replace_draft=args.replace_draft)
+    for body, entry in record['bodies'].items():
+        facts = entry['measures']
+        print(f'  {body:<24} {entry["sex"]:<7} {facts["height_m"]:.3f} m tall, arms {facts["upper_arm_below_horizontal_deg"]} deg down')
+    print(f'[fp] bodies written to {folder} - review {folder/"review"} before committing')
+    return 0
+
+
 def cmd_view(args):
     from .viewer import serve
     serve(args.port)
@@ -88,6 +98,13 @@ def build_parser():
 
     commands.add_parser('outfits', help='list the test outfits').set_defaults(handler=cmd_outfits)
     commands.add_parser('freeze', help='make a frozen copy of the committed code').set_defaults(handler=cmd_freeze)
+
+    bodies = commands.add_parser('bodies', help='the four target bodies')
+    bodies_commands = bodies.add_subparsers(dest='bodies_command', required=True)
+    make = bodies_commands.add_parser('make', help='make them with MPFB (refuses if they exist)')
+    make.add_argument('--replace-draft', action='store_true',
+                      help='set an unreviewed draft aside first (reviewed bodies are never replaced)')
+    make.set_defaults(handler=cmd_bodies_make)
 
     view = commands.add_parser('view', help='open the 3D review viewer on this computer')
     view.add_argument('--port', type=int, default=8765)

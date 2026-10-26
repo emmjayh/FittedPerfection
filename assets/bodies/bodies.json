@@ -1,0 +1,392 @@
+{
+  "made": "2026-10-26T14:29:20-04:00",
+  "status": "draft_for_review",
+  "reviewed": false,
+  "mpfb": {
+    "version": "2.0.18",
+    "zip": "add-on-mpfb-v2.0.18.zip",
+    "zip_sha256": "c075b3e9b94b8e5556a5f03f4653602d02ea306de08126e8f55ed6dee28a2dad",
+    "source": "https://extensions.blender.org/add-ons/mpfb/",
+    "licence": "GPL-3.0-or-later"
+  },
+  "rig": "default",
+  "blender": "5.2.0 LTS",
+  "scripts": {
+    "make_bodies.py": "6ad5eb62f7b178b79826e3dcb7ee3edc95bd0e2728f6bd90af67283bdc81ad7c",
+    "render_bodies.py": "bb0ccd8ea7c5c0dfaa213ef1e955f979cefdeb12dcbed7d7fd708491de703be2"
+  },
+  "bodies": {
+    "body_01_medium": {
+      "sex": "female",
+      "macros": {
+        "gender": 0.0,
+        "height": 0.5,
+        "weight": 0.5,
+        "muscle": 0.5,
+        "proportions": 0.5,
+        "age": 0.5,
+        "cupsize": 0.5,
+        "firmness": 0.5,
+        "race": {
+          "asian": 0.33,
+          "caucasian": 0.33,
+          "african": 0.33
+        }
+      },
+      "target_height_m": null,
+      "height_tries": [],
+      "measures": {
+        "height_m": 1.5912,
+        "lowest_y_m": 0.0,
+        "width_m": 0.9712,
+        "depth_m": 0.3841,
+        "upper_arm_below_horizontal_deg": 47.6,
+        "toes_ahead_of_heels": true,
+        "vertices": 14517,
+        "triangles": 26756,
+        "bones": 163,
+        "max_influences": 8,
+        "weight_sum_range": [
+          1.0,
+          1.0
+        ]
+      },
+      "sha256": "b2a43fc32e78a3e0aa4f7243c00ecfb42a36b6e7a415e94b24e665014c37db74"
+    },
+    "body_02_tall_slender": {
+      "sex": "female",
+      "macros": {
+        "gender": 0.0,
+        "height": 0.64062,
+        "weight": 0.2,
+        "muscle": 0.4,
+        "proportions": 0.65,
+        "age": 0.5,
+        "cupsize": 0.5,
+        "firmness": 0.5,
+        "race": {
+          "asian": 0.33,
+          "caucasian": 0.33,
+          "african": 0.33
+        }
+      },
+      "target_height_m": 1.78,
+      "height_tries": [
+        {
+          "height_value": 0.5,
+          "height_m": 1.5943
+        },
+        {
+          "height_value": 0.75,
+          "height_m": 1.9376
+        },
+        {
+          "height_value": 0.625,
+          "height_m": 1.7587
+        },
+        {
+          "height_value": 0.6875,
+          "height_m": 1.8482
+        },
+        {
+          "height_value": 0.65625,
+          "height_m": 1.8035
+        },
+        {
+          "height_value": 0.64062,
+          "height_m": 1.7811
+        }
+      ],
+      "measures": {
+        "height_m": 1.7811,
+        "lowest_y_m": 0.0,
+        "width_m": 1.0845,
+        "depth_m": 0.4189,
+        "upper_arm_below_horizontal_deg": 47.7,
+        "toes_ahead_of_heels": true,
+        "vertices": 14517,
+        "triangles": 26756,
+        "bones": 163,
+        "max_influences": 8,
+        "weight_sum_range": [
+          1.0,
+          1.0
+        ]
+      },
+      "sha256": "ac27f7125ad82c1af1958c3d9c54bf399c8ed096b847237e14e4ea958a24aec9"
+    },
+    "body_03_short_heavy": {
+      "sex": "male",
+      "macros": {
+        "gender": 1.0,
+        "height": 0.375,
+        "weight": 1.0,
+        "muscle": 0.5,
+        "proportions": 0.35,
+        "age": 0.5,
+        "cupsize": 0.5,
+        "firmness": 0.5,
+        "race": {
+          "asian": 0.33,
+          "caucasian": 0.33,
+          "african": 0.33
+        }
+      },
+      "target_height_m": 1.65,
+      "height_tries": [
+        {
+          "height_value": 0.5,
+          "height_m": 1.7291
+        },
+        {
+          "height_value": 0.25,
+          "height_m": 1.5583
+        },
+        {
+          "height_value": 0.375,
+          "height_m": 1.6473
+        }
+      ],
+      "measures": {
+        "height_m": 1.6473,
+        "lowest_y_m": 0.0,
+        "width_m": 1.0776,
+        "depth_m": 0.4616,
+        "upper_arm_below_horizontal_deg": 48.7,
+        "toes_ahead_of_heels": true,
+        "vertices": 14517,
+        "triangles": 26756,
+        "bones": 163,
+        "max_influences": 8,
+        "weight_sum_range": [
+          1.0,
+          1.0
+        ]
+      },
+      "sha256": "a0776767123c4c81ae7cc50b260dfa0b6e4f8748ea8e74e7834c97f8f9ed8d4b"
+    },
+    "body_04_broad_muscular": {
+      "sex": "male",
+      "macros": {
+        "gender": 1.0,
+        "height": 0.59375,
+        "weight": 0.7,
+        "muscle": 1.0,
+        "proportions": 0.7,
+        "age": 0.5,
+        "cupsize": 0.5,
+        "firmness": 0.5,
+        "race": {
+          "asian": 0.33,
+          "caucasian": 0.33,
+          "african": 0.33
+        }
+      },
+      "target_height_m": 1.85,
+      "height_tries": [
+        {
+          "height_value": 0.5,
+          "height_m": 1.7291
+        },
+        {
+          "height_value": 0.75,
+          "height_m": 2.0661
+        },
+        {
+          "height_value": 0.625,
+          "height_m": 1.8906
+        },
+        {
+          "height_value": 0.5625,
+          "height_m": 1.8028
+        },
+        {
+          "height_value": 0.59375,
+          "height_m": 1.8467
+        }
+      ],
+      "measures": {
+        "height_m": 1.8467,
+        "lowest_y_m": 0.0,
+        "width_m": 1.2205,
+        "depth_m": 0.5087,
+        "upper_arm_below_horizontal_deg": 48.5,
+        "toes_ahead_of_heels": true,
+        "vertices": 14517,
+        "triangles": 26756,
+        "bones": 163,
+        "max_influences": 8,
+        "weight_sum_range": [
+          1.0,
+          1.0
+        ]
+      },
+      "sha256": "f9cee0384a1ba38cb7bbbee1caa99608504b37e2704af6fa3fb27ca8b4c380b3"
+    }
+  },
+  "bone_names": [
+    "root",
+    "pelvis.L",
+    "upperleg01.L",
+    "upperleg02.L",
+    "lowerleg01.L",
+    "lowerleg02.L",
+    "foot.L",
+    "toe1-1.L",
+    "toe1-2.L",
+    "toe2-1.L",
+    "toe2-2.L",
+    "toe2-3.L",
+    "toe3-1.L",
+    "toe3-2.L",
+    "toe3-3.L",
+    "toe4-1.L",
+    "toe4-2.L",
+    "toe4-3.L",
+    "toe5-1.L",
+    "toe5-2.L",
+    "toe5-3.L",
+    "pelvis.R",
+    "upperleg01.R",
+    "upperleg02.R",
+    "lowerleg01.R",
+    "lowerleg02.R",
+    "foot.R",
+    "toe1-1.R",
+    "toe1-2.R",
+    "toe2-1.R",
+    "toe2-2.R",
+    "toe2-3.R",
+    "toe3-1.R",
+    "toe3-2.R",
+    "toe3-3.R",
+    "toe4-1.R",
+    "toe4-2.R",
+    "toe4-3.R",
+    "toe5-1.R",
+    "toe5-2.R",
+    "toe5-3.R",
+    "spine05",
+    "spine04",
+    "spine03",
+    "spine02",
+    "breast.L",
+    "breast.R",
+    "spine01",
+    "clavicle.L",
+    "shoulder01.L",
+    "upperarm01.L",
+    "upperarm02.L",
+    "lowerarm01.L",
+    "lowerarm02.L",
+    "wrist.L",
+    "finger1-1.L",
+    "finger1-2.L",
+    "finger1-3.L",
+    "metacarpal1.L",
+    "finger2-1.L",
+    "finger2-2.L",
+    "finger2-3.L",
+    "metacarpal2.L",
+    "finger3-1.L",
+    "finger3-2.L",
+    "finger3-3.L",
+    "metacarpal3.L",
+    "finger4-1.L",
+    "finger4-2.L",
+    "finger4-3.L",
+    "metacarpal4.L",
+    "finger5-1.L",
+    "finger5-2.L",
+    "finger5-3.L",
+    "clavicle.R",
+    "shoulder01.R",
+    "upperarm01.R",
+    "upperarm02.R",
+    "lowerarm01.R",
+    "lowerarm02.R",
+    "wrist.R",
+    "finger1-1.R",
+    "finger1-2.R",
+    "finger1-3.R",
+    "metacarpal1.R",
+    "finger2-1.R",
+    "finger2-2.R",
+    "finger2-3.R",
+    "metacarpal2.R",
+    "finger3-1.R",
+    "finger3-2.R",
+    "finger3-3.R",
+    "metacarpal3.R",
+    "finger4-1.R",
+    "finger4-2.R",
+    "finger4-3.R",
+    "metacarpal4.R",
+    "finger5-1.R",
+    "finger5-2.R",
+    "finger5-3.R",
+    "neck01",
+    "neck02",
+    "neck03",
+    "head",
+    "jaw",
+    "special04",
+    "oris02",
+    "oris01",
+    "oris06.L",
+    "oris07.L",
+    "oris06.R",
+    "oris07.R",
+    "tongue00",
+    "tongue01",
+    "tongue02",
+    "tongue03",
+    "tongue04",
+    "tongue07.L",
+    "tongue07.R",
+    "tongue06.L",
+    "tongue06.R",
+    "tongue05.L",
+    "tongue05.R",
+    "levator02.L",
+    "levator03.L",
+    "levator04.L",
+    "levator05.L",
+    "levator02.R",
+    "levator03.R",
+    "levator04.R",
+    "levator05.R",
+    "special01",
+    "oris04.L",
+    "oris03.L",
+    "oris04.R",
+    "oris03.R",
+    "oris06",
+    "oris05",
+    "special03",
+    "levator06.L",
+    "levator06.R",
+    "special06.L",
+    "special05.L",
+    "eye.L",
+    "orbicularis03.L",
+    "orbicularis04.L",
+    "special06.R",
+    "special05.R",
+    "eye.R",
+    "orbicularis03.R",
+    "orbicularis04.R",
+    "temporalis01.L",
+    "oculi02.L",
+    "oculi01.L",
+    "temporalis01.R",
+    "oculi02.R",
+    "oculi01.R",
+    "temporalis02.L",
+    "risorius02.L",
+    "risorius03.L",
+    "temporalis02.R",
+    "risorius02.R",
+    "risorius03.R"
+  ]
+}

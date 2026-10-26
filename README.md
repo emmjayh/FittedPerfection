@@ -33,6 +33,29 @@ copy secrets.example.env secrets.env      # paste your Meta Model API key (MODEL
 .venv/Scripts/python -m pytest
 ```
 
+## Target bodies
+
+`assets/bodies/` holds the four fixed bodies. Each has a `BODY.glb` with MPFB's default rig in
+an A-pose, all four share one mesh, and `bodies.json` records how they were made.
+`body_01_medium` is the donor.
+
+| Body | Sex | Height | Build |
+|---|---|---|---|
+| body_01_medium | F | 1.59 m | MPFB default |
+| body_02_tall_slender | F | 1.78 m | light, long-limbed |
+| body_03_short_heavy | M | 1.65 m | maximum MPFB weight |
+| body_04_broad_muscular | M | 1.85 m | maximum muscle |
+
+They're made with MPFB 2.0.18 (from extensions.blender.org, hash-checked). MPFB is installed in
+the project-local Blender folder `.blender/`, so your own Blender setup is untouched:
+
+```powershell
+.venv/Scripts/python -m fittedperfection bodies make     # refuses if assets/bodies/ exists
+```
+
+A build is deterministic: the same values give byte-identical files. Each target height is
+solved for, not guessed. Reviewed bodies are never replaced.
+
 ## Test outfits
 
 `outfits/manifest.json` lists 10 generator archives by hash. The 6 in `outfits/dev/` are for

@@ -20,3 +20,12 @@ desktop.ini
 
 # Outfit archives (large; listed with hashes in outfits/manifest.json)
 outfits/**/*.zip
+
+# Project-local Blender user folder (MPFB lives here) and downloaded installers
+.blender/
+downloads/
+
+# Unfinished and set-aside body drafts
+assets/bodies.partial/
+assets/bodies.stale-*/
+assets/bodies/logs/
