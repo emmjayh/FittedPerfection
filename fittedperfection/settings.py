@@ -31,6 +31,7 @@ _VALUES = {
     'vision': {
         'vocabulary_version': 5,
         'mask_encoding': 'one_bit',
+        'include_confidence': True,
     },
     'label': {
         'crease_degrees': 40.0,

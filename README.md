@@ -12,7 +12,10 @@ frame. Feet partly hidden by cloth give a *provisional* facing, which bind must 
 the shoe labels. **Views** is built too: a 72-frame orthographic turntable plus top and bottom stills of
 the cage, each with a face-ID image (which cage triangle is visible at every pixel), and the
 turntable as `orbit.mp4` for SAM. Every run checks that each pixel lies on the triangle it names.
-The later stages aren't built yet, so a run stops after views.
+**Vision** is built: for each of the 42 vocabulary phrases, SAM 3.1 (Meta Model API) segments the
+turntable video, keeping each part's id all the way round, plus the top and bottom stills. That's
+126 requests, about $0.81 per outfit. Every answer is cached in `runs/_cache/sam/`, so reruns are free
+and identical. Label and bind aren't built yet, so a run stops after vision.
 
 ## Setup
 
