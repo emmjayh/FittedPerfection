@@ -19,7 +19,10 @@ and identical; the cache is keyed by picture content, not file bytes. **Label** 
 the masks into one part label per cage face (where masks overlap the smaller one wins; skin is a
 separate layer confirmed by colour). The labels are combined across all views and smoothed over the
 mesh, then rules apply: legs split at the crotch, open torso cloth hangs, trims take their host's
-label, and sides left/right. Bind isn't built yet, so a run stops after label.
+label, and sides left/right. **Bind** is built: it measures sleeve and leg centrelines, shoulders,
+the crotch (checked against the 0.59 × shoulder-height prior), feet from the shoes alone (which also
+confirms a provisional facing, or refuses the outfit), knees only when both legs agree, and the
+legwear length class. The fit isn't built yet, so a run stops after bind.
 
 ## Setup
 

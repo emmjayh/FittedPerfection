@@ -4,7 +4,7 @@ Each stage is declared here once: its folder, what it reads and the code that
 implements it. A stage that is not built yet stops the run and names the
 build step that adds it; its `code` entry is filled in when it is built.
 """
-from . import intake, label, views, vision
+from . import bind, intake, label, views, vision
 from .run import Stage
 
 
@@ -23,7 +23,7 @@ PIPELINE = (
           models=('sam',)),
     Stage('label', 'labels', label.run, code=label.CODE, needs=('intake', 'views', 'vision'),
           settings=('label',)),
-    Stage('bind', 'bind', not_built(3), needs=('intake', 'label'), settings=('bind',)),
+    Stage('bind', 'bind', bind.run, code=bind.CODE, needs=('intake', 'views', 'label'), settings=('bind',)),
     Stage('fit', 'fit', not_built(4), needs=('intake', 'label', 'bind'), settings=('fit',), bodies=True,
           sealed=True),
     Stage('review', 'review', not_built(8), needs=('intake', 'fit'), settings=('audit',),

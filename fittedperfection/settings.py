@@ -57,6 +57,14 @@ _VALUES = {
         'crotch_prior_of_shoulder_height': 0.59,
         'crotch_prior_tolerance': 0.07,
         'hem_fraction': {'shorts': 0.30, 'knee': 0.60, 'cropped': 0.78, 'full': 1.0},
+        'section_step': 0.03,              # metres between centreline sections
+        'knee_of_height': 0.28,            # expected knee height as a share of the garment height
+        'knee_window_of_height': 0.06,
+        'knee_min_narrowing': 0.05,        # the knee section must be this much narrower than its surroundings
+        'knee_max_side_difference': 0.04,  # both legs' knees must agree within this (metres)
+        'sole_band_of_height': 0.02,
+        'toe_forward_min_dot': 0.7,        # toes must point within ~45 degrees of the front
+        'toe_over_heel_min': 1.4,          # shoe-only toe/heel reach needed to confirm a provisional facing
     },
     'fit': {
         'leg_length_range': [0.85, 1.2],
