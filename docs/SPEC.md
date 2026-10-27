@@ -35,6 +35,18 @@ These decisions override the original text below where they differ.
   have refused.
 - **Body shoulders are measured the way bind measured the garment's:** sleeve roots, or
   `shoulder_top` for sleeveless garments.
+- **Donor legs aim over the rear quarter of the sole** (heel to toe, from bind). The leg
+  centreline ends at the front of the shoe, and a tall boot's "ankle" is its shaft top; aiming at
+  either tilted the legs, so tights and boots sat off-centre on every body.
+- **Donor neck length (new in Step A):** generator figures often have longer necks. The donor's
+  neck lengthens, never shortens, clamped to 1.0–1.6, so its head starts 3 cm above the top of the
+  garment's neck cloth. Without it, turtlenecks and chokers landed on the bodies' chins and mouths.
+- **Step D is a wrap that keeps the shape** (owner's direction: "a lot closer to the skin,
+  essentially as a wrap, but without losing the entire shape"). Height above the skin splits into
+  bulk (smoothed looseness) and relief (folds, pockets, ruffles). The wrap keeps all the relief and
+  30% of the looseness (`wrap_keep`), never closer than ease. Skirts, hanging cloth, and cloth next to
+  the head or hands keep their looseness. One ARAP solve balances the shape of the Step C result,
+  the wrap targets, point-and-triangle contact springs and rigid anchors.
 
 ---
 

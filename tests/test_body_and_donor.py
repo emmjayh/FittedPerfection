@@ -81,3 +81,35 @@ def test_body_shoulder_top_sits_on_the_trunk_just_above_the_arm_roots():
     roots, top = marks['shoulders']['centre'][2], marks['shoulder_top']['centre'][2]
     assert marks['shoulder_top']['method'].startswith('shoulder_top')
     assert 0.0 < top - roots < 0.06                       # not the neck or the head
+
+
+def _built(run):
+    root = Path(__file__).resolve().parents[1]/'runs'/run
+    if not (root/'bind'/'binding.json').is_file():
+        pytest.skip('run not prepared')
+    binding = json.loads((root/'bind'/'binding.json').read_text(encoding='utf-8'))
+    labels = np.load(root/'labels'/'labels.npz')['labels'].astype(str)
+    cage = read_textured_mesh(root/'full'/'CAGE.glb')
+    _, areas = meshes.face_normals(cage.positions, cage.triangles)
+    return binding, donor.build(binding, labels, cage.positions[cage.triangles].mean(axis=1), areas,
+                                settings.section('fit'))
+
+
+@needs_bodies
+@pytest.mark.parametrize('run', ['moonshorts', 'hallowewenbaddie'])
+def test_donor_legs_aim_over_the_rear_of_the_sole(run):
+    binding, built = _built(run)
+    b = built['body']
+    for side, joint in (('left', 'foot.L'), ('right', 'foot.R')):
+        foot = binding['feet'][side]
+        target = np.array(foot['heel']) + donor.ANKLE_ALONG_SOLE * (np.array(foot['toe']) - np.array(foot['heel']))
+        ankle = built['posed'][np.argmin(np.linalg.norm(b.positions - b.joint(joint), axis=1))]
+        assert np.linalg.norm((ankle - target)[:2]) < 0.06            # the ankle stands over the shoe, not beside it
+
+
+@needs_bodies
+@pytest.mark.parametrize('run', ['baddietanknoarms', 'blackpantsgreentop'])
+def test_donor_neck_only_lengthens_within_its_range(run):
+    _, built = _built(run)
+    low, high = settings.section('fit')['neck_length_range']
+    assert low == 1.0 and low <= built['record']['neck_scale'] <= high

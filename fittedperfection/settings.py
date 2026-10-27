@@ -69,6 +69,7 @@ _VALUES = {
     'fit': {
         'leg_length_range': [0.85, 1.6],   # spec 0.85-1.2; raised to what bind's crotch band allows (see SPEC changes)
         'girth_range': [0.85, 1.15],
+        'neck_length_range': [1.0, 1.6],   # donor neck may lengthen to the garment's neckline, never shorten
         'transfer_neighbours': 32,
         'unpose_neighbours': 16,
         'seam_blend_rings': 6,             # how far either side of a label seam the field is blended
@@ -77,6 +78,12 @@ _VALUES = {
         'transfer_sigma_of_height': 0.03,
         'rigid_max_rotation_degrees': 25.0,
         'contact_ease_of_height': 0.006,
+        'wrap_keep': 0.3,                  # share of the cloth's overall looseness kept by the wrap (relief kept whole)
+        'wrap_bulk_radius_m': 0.06,        # looseness is the height above the skin smoothed over this radius
+        'wrap_target_weight': 0.5,
+        'contact_weight': 5.0,
+        'contact_rounds': 4,
+        'arap_iterations': 8,
         'max_influences': 4,
     },
     'audit': {

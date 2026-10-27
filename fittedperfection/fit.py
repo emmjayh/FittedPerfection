@@ -11,19 +11,23 @@ C. transfer: donor and targets share one mesh, so each body vertex has an exact 
    rotations. Rigid groups are placed as exact copies (rigid fit to the field, rotation
    clamped). UV-split twins share one result, so seams cannot open.
 
-No clearance solve yet (Step D comes next), so cloth may still cut into a body. Every
-output is a preview draft: fit_reviewed and game_ready are false.
+D. wrap (fittedperfection/wrap.py): one coordinated solve that brings the cloth close to
+   each body's skin (keeping its relief and part of its looseness), keeps the local shape
+   of the Step C result, holds contact outside the skin plus ease, and anchors rigid groups.
+
+No skinning (F) or full resolution (G) yet. Every output is a preview draft: fit_reviewed
+and game_ready are false.
 """
 import json
 
 import numpy as np
 from scipy.spatial import cKDTree
 
-from . import body as bodies, config, donor, meshes, settings
+from . import body as bodies, config, donor, meshes, settings, wrap
 from .glbwrite import write_mesh
 from .gltf import read_textured_mesh
 
-CODE = ('fit.py', 'donor.py', 'body.py', 'bind.py', 'label.py', 'meshes.py', 'gltf.py', 'glbwrite.py')
+CODE = ('fit.py', 'wrap.py', 'donor.py', 'body.py', 'bind.py', 'label.py', 'meshes.py', 'gltf.py', 'glbwrite.py')
 REGION_OF = {'sleeve': 'arm', 'cuff': 'arm', 'pant_leg': 'leg', 'footwear': 'leg', 'pants': 'hips',
              'hanging': 'hanging'}
 RIGID_CLASSES = ('hardware',)
@@ -212,6 +216,34 @@ def stretch(source, fitted, triangles, keep):
             'p99_ratio': round(float(np.percentile(ratio, 99)), 3)}
 
 
+def skin_regions(target, regions):
+    """(region, point indices, skin faces) for the wrap: each cage point measures against the skin of its own
+    region (arm, leg, trunk), so baggy inner legs never measure against the other leg. Trouser seats (hips)
+    measure against the trunk and both legs; free-hanging and unknown points against the whole skin."""
+    crotch = bodies.landmarks(target)['crotch_height_m']
+    sets = donor_region_sets(target, target.positions, crotch)
+    sets['hips'] = np.unique(np.concatenate([sets['trunk'], sets['leg.left'], sets['leg.right']]))
+    out = []
+    for region in np.unique(regions):
+        chosen = np.flatnonzero(regions == region)
+        if region in ('', 'hanging') or region not in sets:
+            out.append(('all', chosen, np.arange(len(target.triangles))))
+            continue
+        member = np.zeros(len(target.positions), dtype=bool)
+        member[sets[region]] = True
+        out.append((region, chosen, np.flatnonzero(member[target.triangles].any(axis=1))))
+    return out
+
+
+def bare_skin(target):
+    """Skin faces that are bare by nature (head, hands): cloth near them is not wrapped onto them."""
+    bones = set()
+    for root in ('head', 'wrist.L', 'wrist.R'):
+        bones |= bodies._descendants(target.parents, target.bone_names.index(root))
+    weight = (target.weights * np.isin(target.joints, list(bones))).sum(axis=1)
+    return weight[target.triangles].mean(axis=1) >= 0.5
+
+
 def run(ctx, out):
     config_fit = settings.section('fit')
     cage = read_textured_mesh(ctx.output_of('intake')/'CAGE.glb')
@@ -246,26 +278,41 @@ def run(ctx, out):
     rest_points, rigid_unpose = place_rigid(unique_points, rest_points, groups)
 
     keep = labels != 'skin'
+    looseness_kept = wrap.point_keep(labels, unique_triangles, len(unique_points), config_fit['wrap_keep'])
+    rigid = np.unique(np.concatenate([g['vertices'] for g in groups])) if groups else np.zeros(0, dtype=np.int64)
+    cloth = np.unique(unique_triangles[keep & ~np.char.startswith(labels, 'footwear')])
     summary = {}
     for target in config.BODIES:
         folder = out/target
         folder.mkdir()
-        target_rest = bodies.load(target).positions
+        target_body = bodies.load(target)
+        target_rest = target_body.positions
         fitted = transfer(rest_points, regions, built['rest'], target_rest, body, donor_crotch, config_fit,
                           adjacency, band)
         fitted, rigid_transfer = place_rigid(rest_points, fitted, groups, config_fit['rigid_max_rotation_degrees'])
+        skin = wrap.Skin(target_rest, target_body.triangles, bare_skin(target_body))
+        before = {'offsets': wrap.offsets(fitted, skin, cloth),
+                  'stretch': stretch(cage.positions, fitted[welded], cage.triangles, keep)}
+        transferred = fitted
+        fitted, wrap_record = wrap.solve(fitted, unique_triangles, looseness_kept, skin,
+                                         skin_regions(target_body, regions), rigid, config_fit, target_body.height,
+                                         lambda field: blend_across_seams(field, adjacency, band,
+                                                                          config_fit['seam_blend_iterations']))
+        wrap_record['before'] = before
+        wrap_record['after'] = {'offsets': wrap.offsets(fitted, skin, cloth)}
         positions = fitted[welded]
         stretched = stretch(cage.positions, positions, cage.triangles, keep)
         np.savez_compressed(folder/'cage-fit.npz', positions=positions.astype(np.float32),
+                            transferred_positions=transferred[welded].astype(np.float32),
                             rest_positions=rest_points[welded].astype(np.float32), regions=regions[welded].astype(str))
         write_mesh(folder/'DRAFT.glb', positions, cage.triangles[keep], uvs=cage.uvs, texture_png=cage.texture_png,
                    name=f'{target}-draft')
-        report = {'status': 'preview_steps_A-C', 'body': target, 'fit_reviewed': False, 'game_ready': False,
-                  'note': 'cage preview: no clearance solve (Step D), skinning (F) or full resolution (G) yet',
+        report = {'status': 'preview_steps_A-D', 'body': target, 'fit_reviewed': False, 'game_ready': False,
+                  'note': 'cage preview: no shoes step (E), skinning (F) or full resolution (G) yet',
                   'settings': json.loads(json.dumps(dict(config_fit), default=list)),
                   'donor': built['record'], 'rigid_groups': {'unpose': rigid_unpose, 'transfer': rigid_transfer},
-                  'stretch_vs_source': stretched, 'gates': {}}
+                  'wrap': wrap_record, 'stretch_vs_source': stretched, 'gates': {}}
         (folder/'fit.report.json').write_text(json.dumps(report, indent=1, default=float), encoding='utf-8', newline='\n')
-        summary[target] = stretched
+        summary[target] = {'stretch': stretched, 'offsets': wrap_record['after']['offsets']}
     return {'donor': {k: built['record'][k] for k in ('scale', 'leg_scale', 'pose')}, 'stretch': summary,
             'rigid_groups': [g['name'] for g in groups]}
