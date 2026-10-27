@@ -46,6 +46,7 @@ copy secrets.example.env secrets.env      # paste your Meta Model API key (MODEL
 .venv/Scripts/python -m fittedperfection status moonshorts
 .venv/Scripts/python -m fittedperfection freeze                  # frozen copy of committed code for long batches
 .venv/Scripts/python -m fittedperfection app                     # the app on http://127.0.0.1:8765/ (also: view)
+.venv/Scripts/python -m fittedperfection preview moonshorts --turntable   # MP4: source + four fits spinning
 .venv/Scripts/python -m pytest
 ```
 

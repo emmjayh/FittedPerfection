@@ -83,6 +83,9 @@ def cmd_preview(args):
     if args.fit or args.pose:
         from .preview import fit_preview
         print(f'[fp] renders in {fit_preview(args.name, pose=args.pose)}')
+    if args.turntable:
+        from .preview import turntable
+        print(f'[fp] video: {turntable(args.name)}')
     return 0
 
 
@@ -127,6 +130,7 @@ def build_parser():
     preview.add_argument('--donor', action='store_true', help='the donor inside the outfit')
     preview.add_argument('--fit', action='store_true', help='the source, then every body wearing its outfit')
     preview.add_argument('--pose', action='store_true', help='every body in the audit test pose (elbows 60, knees 30)')
+    preview.add_argument('--turntable', action='store_true', help='an MP4 of the source and the four fits spinning')
     preview.set_defaults(handler=cmd_preview)
 
     view = commands.add_parser('view', aliases=['app'],
