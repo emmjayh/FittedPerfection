@@ -84,6 +84,11 @@ _VALUES = {
         'contact_weight': 5.0,
         'contact_rounds': 4,
         'arap_iterations': 8,
+        'foot_length_of_height': 0.15,     # the foot a source shoe was made for, as a share of the figure's height
+        'shoe_shaft_above_ankle_m': 0.03,  # footwear higher than this above the ankle is a shaft (wrapped, not rigid)
+        'shoe_shaft_min_m': 0.15,          # ...when the footwear rises at least this far above that line (a boot)
+        'shoe_sole_search_m': 0.08,        # the sole's edge is looked for this high from the bottom of the shoe
+        'ghost_grid_m': 0.005,             # raster of the shoe height map used to hide covered body faces
         'max_influences': 4,
     },
     'audit': {

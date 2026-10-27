@@ -53,6 +53,8 @@ def fit_preview(name, spacing=1.3):
     out.mkdir(parents=True, exist_ok=True)
     items = [f'{run_folder/"full"/"CAGE.glb"}|texture|0']
     for i, body in enumerate(config.BODIES, start=1):
-        items += [f'{config.body_file(body)}|skin|{i * spacing}', f'{run_folder/"fit"/body/"DRAFT.glb"}|texture|{i * spacing}']
+        shown = run_folder/'fit'/body/'BODY.glb'                  # raised by the sole, covered faces hidden
+        items += [f'{shown if shown.is_file() else config.body_file(body)}|skin|{i * spacing}',
+                  f'{run_folder/"fit"/body/"DRAFT.glb"}|texture|{i * spacing}']
     render(items, out, name)
     return out

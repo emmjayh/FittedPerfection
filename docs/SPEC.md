@@ -47,6 +47,17 @@ These decisions override the original text below where they differ.
   30% of the looseness (`wrap_keep`), never closer than ease. Skirts, hanging cloth, and cloth next to
   the head or hands keep their looseness. One ARAP solve balances the shape of the Step C result,
   the wrap targets, point-and-triangle contact springs and rigid anchors.
+- **Step E shoes, no body warping** (owner's decisions, replacing §7.1's heel flattening):
+  - **Size:** each shoe is scaled uniformly to each body's foot. The foot it was made for is
+    taken as 15% of the source figure's height; the donor's foot gives where it sits.
+  - **Placement:** a rigid move onto the foot with the footbed on the sole, measured from the
+    sole's edge at the ball. Pitch is kept, so heels stay heels.
+  - **Raised model:** the whole fit goes up so the soles stand on the floor
+    (`root_offset_m`, a single translation for the game). The body itself is unchanged.
+  - **Ghost removal:** body faces inside or poking through a shoe are listed as hidden
+    (`hidden_body_faces.npy`). `BODY.glb` is the body as shown.
+  - **Boot shafts:** footwear rising at least 15 cm above the ankle line is wrapped with the
+    clothes (Step D), not warped separately; lower shoes stay fully rigid.
 
 ---
 
