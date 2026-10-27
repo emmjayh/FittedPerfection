@@ -113,3 +113,28 @@ def test_donor_neck_only_lengthens_within_its_range(run):
     _, built = _built(run)
     low, high = settings.section('fit')['neck_length_range']
     assert low == 1.0 and low <= built['record']['neck_scale'] <= high
+
+
+@needs_bodies
+@pytest.mark.parametrize('run', ['blackshirtsuspenderjeans', 'blackpantsgreentop'])
+def test_donor_wrists_meet_the_cuffs(run):
+    binding, built = _built(run)
+    root = Path(__file__).resolve().parents[1]/'runs'/run
+    labels = np.load(root/'labels'/'labels.npz')['labels'].astype(str)
+    cage = read_textured_mesh(root/'full'/'CAGE.glb')
+    centres = cage.positions[cage.triangles].mean(axis=1)
+    _, areas = meshes.face_normals(cage.positions, cage.triangles)
+    b = built['body']
+    for side, s in (('left', 'L'), ('right', 'R')):
+        cuff = labels == f'cuff.{side}'
+        if cuff.sum() < donor.MIN_CUFF_FACES:
+            continue
+        wrist = donor.apply(built['posed_bones'][b.bone_names.index(f'wrist.{s}')], b.joint(f'wrist.{s}'))
+        assert np.linalg.norm(wrist - np.average(centres[cuff], axis=0, weights=areas[cuff])) < 0.05
+        assert isinstance(built['record']['arm_scale'][side], dict)
+
+
+@needs_bodies
+def test_donor_arms_keep_their_length_without_a_cuff():
+    _, built = _built('hallowewenbaddie')
+    assert built['record']['arm_scale'] == {'left': 'kept (no cuff)', 'right': 'kept (no cuff)'}

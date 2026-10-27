@@ -73,6 +73,7 @@ _VALUES = {
         'leg_length_range': [0.85, 1.6],   # spec 0.85-1.2; raised to what bind's crotch band allows (see SPEC changes)
         'girth_range': [0.85, 1.15],
         'neck_length_range': [1.0, 1.6],   # donor neck may lengthen to the garment's neckline, never shorten
+        'arm_length_range': [0.7, 1.5],    # donor arm stretches so its wrist meets a labelled cuff
         'transfer_neighbours': 32,
         'unpose_neighbours': 16,
         'seam_blend_rings': 6,             # how far either side of a label seam the field is blended
