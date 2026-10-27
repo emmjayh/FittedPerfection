@@ -96,6 +96,10 @@ _VALUES = {
     'audit': {
         'stretch_limits': [3.0, 10.0],
         'synthetic_poses': {'elbow_degrees': [30, 60], 'knee_degrees': [15, 30]},
+        'penetration_samples': 50000,      # cloth vertices sampled for inside-the-body shares
+        'coverage_reach_m': 0.06,          # cloth this close along a skin point's outward normal covers it
+        'coverage_source_reach_m': 0.15,   # ...on the source, whose cloth hangs looser around the donor
+        'coverage_min_cos': 0.5,
     },
 }
 
