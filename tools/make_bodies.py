@@ -9,14 +9,18 @@ Blender must see MPFB: the command points BLENDER_USER_RESOURCES at the project'
 
 Order matters. MPFB fits its rig to helper geometry inside the base mesh, so:
 macro values -> bake the shape -> stand it on the floor -> add the default rig and
-weights -> delete the helper geometry -> triangulate with fixed diagonals -> export.
+weights -> lower the arms to the chosen angle and make that the rest pose -> delete the
+helper geometry -> triangulate with fixed diagonals -> export.
 """
 import argparse
 import json
 import sys
 
+import math
+
 import bmesh
 import bpy
+from mathutils import Matrix, Vector
 
 
 def mpfb(module_suffix, name):
@@ -33,6 +37,7 @@ def arguments():
     parser.add_argument('--macros', required=True, help='JSON macro values for MPFB create_human')
     parser.add_argument('--out', required=True)
     parser.add_argument('--report', required=True)
+    parser.add_argument('--arm-drop', type=float, required=True, help='upper arms, degrees below horizontal')
     return parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
 
 
@@ -51,6 +56,42 @@ def stand_on_floor(basemesh):
     basemesh.select_set(True)
     bpy.context.view_layer.objects.active = basemesh
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+
+
+def lower_arms(armature, basemesh, degrees_below_horizontal):
+    """Rotate each upper arm about its shoulder joint, down in the arm's own vertical plane, to the given
+    angle below horizontal; then make that pose the mesh shape and the rig's rest pose (weights unchanged)."""
+    bpy.ops.object.select_all(action='DESELECT')
+    armature.select_set(True)
+    bpy.context.view_layer.objects.active = armature
+    bpy.ops.object.mode_set(mode='POSE')
+    before = {}
+    for side in ('L', 'R'):
+        upper, lower = armature.pose.bones[f'upperarm01.{side}'], armature.pose.bones[f'lowerarm01.{side}']
+        head, elbow = armature.matrix_world @ upper.head, armature.matrix_world @ lower.head
+        direction = (elbow - head).normalized()
+        current = math.degrees(math.asin(max(-1.0, min(1.0, -direction.z))))
+        before[side] = round(current, 2)
+        axis = direction.cross(Vector((0.0, 0.0, -1.0))).normalized()          # turning about it lowers the arm
+        turn = Matrix.Translation(upper.head) @ Matrix.Rotation(math.radians(degrees_below_horizontal - current), 4,
+                                                                 axis) @ Matrix.Translation(-upper.head)
+        upper.matrix = turn @ upper.matrix
+        bpy.context.view_layer.update()
+    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.select_all(action='DESELECT')
+    basemesh.select_set(True)
+    bpy.context.view_layer.objects.active = basemesh
+    modifier = next(m for m in basemesh.modifiers if m.type == 'ARMATURE')
+    bpy.ops.object.modifier_apply(modifier=modifier.name)                     # the posed shape becomes the mesh
+    bpy.ops.object.select_all(action='DESELECT')
+    armature.select_set(True)
+    bpy.context.view_layer.objects.active = armature
+    bpy.ops.object.mode_set(mode='POSE')
+    bpy.ops.pose.armature_apply(selected=False)                               # and the pose becomes the rest pose
+    bpy.ops.object.mode_set(mode='OBJECT')
+    restored = basemesh.modifiers.new('Armature', 'ARMATURE')
+    restored.object = armature
+    return before
 
 
 def delete_helpers(basemesh, bone_names):
@@ -88,6 +129,7 @@ def main():
     armature = HumanService.add_builtin_rig(basemesh, 'default', import_weights=True)
     if armature is None:
         raise RuntimeError('MPFB could not add the default rig')
+    arms_before = lower_arms(armature, basemesh, args.arm_drop)
     bone_names = [bone.name for bone in armature.data.bones]
     delete_helpers(basemesh, set(bone_names))
     basemesh.name = basemesh.data.name = args.body_id
@@ -111,6 +153,8 @@ def main():
         'vertices': len(basemesh.data.vertices),
         'faces': len(basemesh.data.polygons),
         'bones': bone_names,
+        'arm_drop_before_deg': arms_before,
+        'arm_drop_deg': args.arm_drop,
     }
     with open(args.report, 'w', encoding='utf-8', newline='\n') as stream:
         json.dump(report, stream, indent=2)

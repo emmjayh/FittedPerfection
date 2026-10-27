@@ -22,6 +22,7 @@ MPFB = {'version': '2.0.18', 'zip': 'add-on-mpfb-v2.0.18.zip',
         'zip_sha256': 'c075b3e9b94b8e5556a5f03f4653602d02ea306de08126e8f55ed6dee28a2dad',
         'source': 'https://extensions.blender.org/add-ons/mpfb/', 'licence': 'GPL-3.0-or-later'}
 RIG = 'default'
+ARM_DROP_DEG = 60.0          # upper arms, degrees below horizontal: a relaxed A-pose (MPFB's own is ~47.5)
 
 _SHARED = {'age': 0.5, 'cupsize': 0.5, 'firmness': 0.5, 'race': {'asian': 0.33, 'caucasian': 0.33, 'african': 0.33}}
 # Build per body. MPFB's 'height' value is solved to hit TARGET_HEIGHT_M (None: keep 0.5,
@@ -70,7 +71,8 @@ def measure(mesh):
     names = mesh.bone_names
     head = lambda bone: mesh.bone_heads[names.index(bone)]
     upper, lower = head('upperarm01.L'), head('lowerarm01.L')
-    arm_drop = float(np.degrees(np.arctan2(upper[1] - lower[1], abs(lower[0] - upper[0]))))
+    arm = lower - upper                                   # glTF: +Y is up
+    arm_drop = float(np.degrees(np.arcsin(-arm[1] / np.linalg.norm(arm))))
     lowest, highest = mesh.positions.min(axis=0), mesh.positions.max(axis=0)
     return {
         'height_m': round(float(highest[1] - lowest[1]), 4),
@@ -107,7 +109,7 @@ def check(folder):
             problems.append(f'{body}: feet not on the floor (lowest point {facts["lowest_y_m"]} m)')
         if not facts['toes_ahead_of_heels']:
             problems.append(f'{body}: does not face +Z')
-        if not 30 <= facts['upper_arm_below_horizontal_deg'] <= 60:
+        if abs(facts['upper_arm_below_horizontal_deg'] - ARM_DROP_DEG) > 2.0:
             problems.append(f'{body}: arms not in an A-pose ({facts["upper_arm_below_horizontal_deg"]} deg)')
     if problems:
         raise BodyError('; '.join(problems))
@@ -117,7 +119,7 @@ def check(folder):
 def _build(body, macros, folder, logs, tag):
     folder.mkdir(parents=True, exist_ok=True)
     _blender(MAKE_SCRIPT, ['--body-id', body, '--macros', json.dumps(macros), '--out', folder/'BODY.glb',
-                           '--report', folder/'make.json'], logs/f'make-{body}-{tag}.log')
+                           '--report', folder/'make.json', '--arm-drop', ARM_DROP_DEG], logs/f'make-{body}-{tag}.log')
     positions = read_skinned_mesh(folder/'BODY.glb').positions
     return float(positions[:, 1].max() - positions[:, 1].min())
 
@@ -184,6 +186,7 @@ def make(replace_draft=False):
         'reviewed': False,
         'mpfb': MPFB,
         'rig': RIG,
+        'arm_drop_deg': ARM_DROP_DEG,
         'blender': blender_report['blender'],
         'scripts': {path.name: file_sha256(path) for path in (MAKE_SCRIPT, RENDER_SCRIPT)},
         'bodies': {body: {'sex': config.BODIES[body], 'macros': macros_used[body],

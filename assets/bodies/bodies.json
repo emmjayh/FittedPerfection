@@ -1,7 +1,7 @@
 {
-  "made": "2026-10-26T14:29:20-04:00",
-  "status": "reviewed",
-  "reviewed": true,
+  "made": "2026-10-26T20:35:25-04:00",
+  "status": "draft_for_review",
+  "reviewed": false,
   "mpfb": {
     "version": "2.0.18",
     "zip": "add-on-mpfb-v2.0.18.zip",
@@ -10,9 +10,10 @@
     "licence": "GPL-3.0-or-later"
   },
   "rig": "default",
+  "arm_drop_deg": 60.0,
   "blender": "5.2.0 LTS",
   "scripts": {
-    "make_bodies.py": "6ad5eb62f7b178b79826e3dcb7ee3edc95bd0e2728f6bd90af67283bdc81ad7c",
+    "make_bodies.py": "a5245d8d2f7d8e6a15536122edfc4e417a60612050023921f36afd24c9dac869",
     "render_bodies.py": "bb0ccd8ea7c5c0dfaa213ef1e955f979cefdeb12dcbed7d7fd708491de703be2"
   },
   "bodies": {
@@ -38,9 +39,9 @@
       "measures": {
         "height_m": 1.5912,
         "lowest_y_m": 0.0,
-        "width_m": 0.9712,
-        "depth_m": 0.3841,
-        "upper_arm_below_horizontal_deg": 47.6,
+        "width_m": 0.7826,
+        "depth_m": 0.382,
+        "upper_arm_below_horizontal_deg": 60.0,
         "toes_ahead_of_heels": true,
         "vertices": 14517,
         "triangles": 26756,
@@ -51,7 +52,7 @@
           1.0
         ]
       },
-      "sha256": "b2a43fc32e78a3e0aa4f7243c00ecfb42a36b6e7a415e94b24e665014c37db74"
+      "sha256": "0882c421f00d7dcec429bf53d1f5809582acde22926800c4e3e02a56a4462397"
     },
     "body_02_tall_slender": {
       "sex": "female",
@@ -100,9 +101,9 @@
       "measures": {
         "height_m": 1.7811,
         "lowest_y_m": 0.0,
-        "width_m": 1.0845,
-        "depth_m": 0.4189,
-        "upper_arm_below_horizontal_deg": 47.7,
+        "width_m": 0.8731,
+        "depth_m": 0.415,
+        "upper_arm_below_horizontal_deg": 60.0,
         "toes_ahead_of_heels": true,
         "vertices": 14517,
         "triangles": 26756,
@@ -113,7 +114,7 @@
           1.0
         ]
       },
-      "sha256": "ac27f7125ad82c1af1958c3d9c54bf399c8ed096b847237e14e4ea958a24aec9"
+      "sha256": "680e33830e721f63aa22441115bdb3c64c10fb30cb105e533dc5826197c2692f"
     },
     "body_03_short_heavy": {
       "sex": "male",
@@ -149,10 +150,10 @@
       ],
       "measures": {
         "height_m": 1.6473,
-        "lowest_y_m": 0.0,
-        "width_m": 1.0776,
-        "depth_m": 0.4616,
-        "upper_arm_below_horizontal_deg": 48.7,
+        "lowest_y_m": -0.0,
+        "width_m": 0.8946,
+        "depth_m": 0.4628,
+        "upper_arm_below_horizontal_deg": 60.0,
         "toes_ahead_of_heels": true,
         "vertices": 14517,
         "triangles": 26756,
@@ -163,7 +164,7 @@
           1.0
         ]
       },
-      "sha256": "a0776767123c4c81ae7cc50b260dfa0b6e4f8748ea8e74e7834c97f8f9ed8d4b"
+      "sha256": "a9824bbac3304b2deea364306222e60c81ea0579593049ad6aa6cc838cb724b8"
     },
     "body_04_broad_muscular": {
       "sex": "male",
@@ -207,10 +208,10 @@
       ],
       "measures": {
         "height_m": 1.8467,
-        "lowest_y_m": 0.0,
-        "width_m": 1.2205,
+        "lowest_y_m": -0.0,
+        "width_m": 1.0128,
         "depth_m": 0.5087,
-        "upper_arm_below_horizontal_deg": 48.5,
+        "upper_arm_below_horizontal_deg": 60.0,
         "toes_ahead_of_heels": true,
         "vertices": 14517,
         "triangles": 26756,
@@ -221,7 +222,7 @@
           1.0
         ]
       },
-      "sha256": "f9cee0384a1ba38cb7bbbee1caa99608504b37e2704af6fa3fb27ca8b4c380b3"
+      "sha256": "48c14a52f8d7a15545b86d8bb0ee1f602edf1181e1eecf244d8207483443c86c"
     }
   },
   "bone_names": [
@@ -388,10 +389,5 @@
     "temporalis02.R",
     "risorius02.R",
     "risorius03.R"
-  ],
-  "review": {
-    "by": "project owner",
-    "date": "2026-10-26",
-    "notes": "approved front and side; short heavy reads moderately heavy at MPFB maximum weight"
-  }
+  ]
 }

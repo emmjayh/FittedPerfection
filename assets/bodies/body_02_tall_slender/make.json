@@ -183,5 +183,10 @@
     "temporalis02.R",
     "risorius02.R",
     "risorius03.R"
-  ]
+  ],
+  "arm_drop_before_deg": {
+    "L": 47.64,
+    "R": 47.64
+  },
+  "arm_drop_deg": 60.0
 }
