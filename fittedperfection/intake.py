@@ -23,20 +23,31 @@ class IntakeError(ValueError):
     pass
 
 
+def check_members(bundle):
+    """The archive's entries, refusing anything but flat, known file types within the size limit, and requiring
+    a garment mesh and its texture. Reads the listing only; nothing is unpacked."""
+    members = bundle.infolist()
+    total = 0
+    for member in members:
+        name = member.filename
+        if member.is_dir() or '/' in name or '\\' in name or name.startswith('.') or ':' in name:
+            raise IntakeError(f'unexpected entry in the archive: {name!r}')
+        if Path(name).suffix.lower() not in ACCEPTED:
+            raise IntakeError(f'unexpected file type in the archive: {name!r}')
+        total += member.file_size
+    if total > MAX_UNPACKED_BYTES:
+        raise IntakeError(f'archive unpacks to {total / 1e9:.1f} GB, more than allowed')
+    names = [m.filename for m in members]
+    choose_mesh(names)
+    if TEXTURE not in names:
+        raise IntakeError(f'the archive has no {TEXTURE}')
+    return members
+
+
 def unpack(archive, folder):
     """Unpack only flat, known file types; refuse anything else in the archive."""
     with zipfile.ZipFile(archive) as bundle:
-        members = bundle.infolist()
-        total = 0
-        for member in members:
-            name = member.filename
-            if member.is_dir() or '/' in name or '\\' in name or name.startswith('.') or ':' in name:
-                raise IntakeError(f'unexpected entry in the archive: {name!r}')
-            if Path(name).suffix.lower() not in ACCEPTED:
-                raise IntakeError(f'unexpected file type in the archive: {name!r}')
-            total += member.file_size
-        if total > MAX_UNPACKED_BYTES:
-            raise IntakeError(f'archive unpacks to {total / 1e9:.1f} GB, more than allowed')
+        members = check_members(bundle)
         folder.mkdir(parents=True)
         for member in members:
             with bundle.open(member) as source, open(folder/member.filename, 'wb') as target:

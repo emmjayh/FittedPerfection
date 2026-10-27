@@ -58,6 +58,31 @@
   </main>
 
   <aside id="side">
+    <section id="fit-new">
+      <h2>Fit a new outfit</h2>
+      <div id="drop" class="drop">
+        Drop a generator archive (.zip) here, or
+        <label class="pick">choose a file<input type="file" id="pick-file" accept=".zip" hidden></label>
+        <span id="drop-note" class="note"></span>
+      </div>
+      <label>…or a listed outfit <select id="pick-listed"></select></label>
+      <label>Run name <input id="run-name" type="text" spellcheck="false"></label>
+      <label class="tick"><input type="checkbox" id="test-fit"> test fit (held-out outfit)</label>
+      <button id="start-fit">Start fitting</button>
+      <div id="job" hidden>
+        <ol id="job-stages" class="job-stages"></ol>
+        <div id="spend" class="spend" hidden>
+          <p id="spend-text"></p>
+          <label class="tick"><input type="checkbox" id="spend-wonder"> also ask Muse Wonder for a review
+            (about $<span id="wonder-usd"></span>)</label>
+          <div class="row"><button id="spend-approve">Approve</button><button id="spend-decline">Not now</button></div>
+        </div>
+        <div id="job-pictures" class="job-pictures"></div>
+        <details><summary>Details</summary><pre id="job-log"></pre></details>
+        <button id="cancel-fit">Cancel fit</button>
+      </div>
+      <output id="job-status" class="note"></output>
+    </section>
     <h2>Source</h2>
     <div id="source"></div>
     <h2>Report</h2>

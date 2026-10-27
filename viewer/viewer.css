@@ -74,3 +74,33 @@ button.active { border-color: var(--accent); color: var(--accent); }
 #source figcaption { color: var(--quiet); font-size: 12px; }
 #report { white-space: pre-wrap; font-size: 11px; color: var(--quiet); margin: 0; }
 .empty { color: var(--quiet); font-size: 12px; }
+
+/* ---- fit a new outfit (app layer) ---- */
+#fit-new { border-bottom: 1px solid var(--edge); padding-bottom: 14px; margin-bottom: 16px; }
+.drop {
+  border: 1px dashed var(--edge); border-radius: 8px; padding: 14px 10px; margin-bottom: 10px;
+  color: var(--quiet); font-size: 12px; text-align: center;
+}
+.drop.over { border-color: var(--accent); color: var(--text); }
+.drop .pick { display: inline; color: var(--accent); cursor: pointer; margin: 0; }
+.note { display: block; color: var(--quiet); font-size: 12px; margin-top: 6px; white-space: pre-wrap; }
+input[type=text] {
+  display: block; width: 100%; margin-top: 3px; padding: 6px 8px; background: var(--ground); color: var(--text);
+  border: 1px solid var(--edge); border-radius: 6px; font: inherit;
+}
+label.tick { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+#start-fit, #cancel-fit { margin-top: 6px; }
+.job-stages { list-style: none; padding: 0; margin: 12px 0 8px; display: grid; gap: 4px; }
+.job-stages li {
+  display: flex; justify-content: space-between; gap: 8px; padding: 5px 8px; border-radius: 6px;
+  background: var(--ground); border-left: 3px solid var(--edge); font-size: 12px;
+}
+.job-stages li span { color: var(--quiet); text-align: right; overflow-wrap: anywhere; }
+.job-stages li.complete { border-left-color: #4cc38a; }
+.job-stages li.running { border-left-color: var(--warn); }
+.job-stages li.stopped { border-left-color: #ef5b5b; }
+.spend { border: 1px solid var(--warn); border-radius: 8px; padding: 10px; margin: 8px 0; font-size: 12px; }
+.spend p { margin: 0 0 8px; }
+.spend .row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.job-pictures img { width: 100%; margin-top: 6px; border: 1px solid var(--edge); border-radius: 6px; }
+#job-log { font-size: 10px; color: var(--quiet); white-space: pre-wrap; max-height: 200px; overflow: auto; }

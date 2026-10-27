@@ -8,6 +8,10 @@ computer only (127.0.0.1):
 
 /api/catalog lists outfits (runs grouped by garment hash), every fit version
 in them (fit/ and each fit.stale-N/), and the four bodies.
+
+The app layer (fittedperfection/app.py): POST /api/uploads (a dropped archive), /api/jobs (start a fit),
+/api/jobs/approve (allow the spending it asked for), /api/jobs/cancel; GET /api/jobs/current and /api/outfits.
+Writes are accepted only from this viewer's own page (its Origin plus a custom header).
 """
 import json
 import mimetypes
@@ -17,8 +21,9 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from . import config
+from . import app, config
 
+JOBS = app.Jobs()
 ALLOWED = {'.glb', '.png', '.jpg', '.jpeg', '.json', '.html'}
 SOURCE_VIEWS = ('front', 'left', 'back', 'right')
 VERSION_FOLDER = re.compile(r'^fit(\.stale-(\d+))?$')
@@ -124,10 +129,52 @@ class ViewerHandler(SimpleHTTPRequestHandler):
             while block := stream.read(1 << 20):
                 self.wfile.write(block)
 
+    def _json(self, value, code=200):
+        body = json.dumps(value).encode('utf-8')
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body)))
+        self.send_header('Cache-Control', 'no-store')
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _from_this_page(self):
+        """Writes only from this viewer's own page: its Origin and a custom header other sites cannot send
+        without a CORS preflight, which this server never grants."""
+        port = self.server.server_address[1]
+        origin = self.headers.get('Origin', '')
+        return self.headers.get('X-FittedPerfection') == '1' and \
+            origin in (f'http://127.0.0.1:{port}', f'http://localhost:{port}')
+
+    def do_POST(self):
+        path = unquote(urlsplit(self.path).path)
+        if not self._from_this_page():
+            return self._json({'error': 'refused: not from this viewer page'}, 403)
+        length = int(self.headers.get('Content-Length') or 0)
+        try:
+            if path == '/api/uploads':
+                return self._json(app.store_upload(self.rfile.read, length, self.headers.get('X-Filename', '')))
+            request = json.loads(self.rfile.read(min(length, 10_000)) or b'{}') if length else {}
+            if path == '/api/jobs':
+                return self._json(JOBS.start(request))
+            if path == '/api/jobs/approve':
+                return self._json(JOBS.approve(wonder=bool(request.get('wonder'))))
+            if path == '/api/jobs/cancel':
+                return self._json(JOBS.cancel())
+        except app.AppError as refused:
+            return self._json({'error': str(refused)}, 400)
+        except (ValueError, OSError) as failed:
+            return self._json({'error': f'{type(failed).__name__}: {failed}'}, 400)
+        return self._json({'error': 'unknown request'}, 404)
+
     def do_GET(self):
         path = unquote(urlsplit(self.path).path)
         if path == '/api/catalog':
             return self._send(json.dumps(catalog()).encode('utf-8'), 'application/json')
+        if path == '/api/jobs/current':
+            return self._json(JOBS.status())
+        if path == '/api/outfits':
+            return self._json(app.listed_outfits())
         if path.startswith('/files/'):
             share, _, relative = path[len('/files/'):].partition('/')
             return self._send_shared(share, relative)

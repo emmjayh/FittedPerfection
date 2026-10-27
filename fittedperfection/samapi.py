@@ -29,7 +29,11 @@ class SamApiError(RuntimeError):
 
 
 class SpendRefused(SamApiError):
-    """A paid call would go over what the owner allowed (default: nothing)."""
+    """A paid call would go over what the owner allowed (default: nothing). estimate_usd: what it would need."""
+
+    def __init__(self, message, estimate_usd=None):
+        super().__init__(message)
+        self.estimate_usd = estimate_usd
 
 
 def _now():
@@ -63,7 +67,8 @@ class SamClient:
         with self._lock:
             if self.spent_usd + estimate_usd > self.budget_usd + 1e-9:
                 raise SpendRefused(f'{what} would cost about ${estimate_usd:.4f}; allowed ${self.budget_usd:.2f},'
-                                   f' already ${self.spent_usd:.4f}. Nothing was sent.')
+                                   f' already ${self.spent_usd:.4f}. Nothing was sent.',
+                                   estimate_usd=self.spent_usd + estimate_usd)
             self.spent_usd += estimate_usd
 
     # -- HTTP -------------------------------------------------------------------

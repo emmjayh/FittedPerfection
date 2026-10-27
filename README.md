@@ -45,7 +45,7 @@ copy secrets.example.env secrets.env      # paste your Meta Model API key (MODEL
 .venv/Scripts/python -m fittedperfection run purpleshorts --test-fit   # held-out outfits need --test-fit
 .venv/Scripts/python -m fittedperfection status moonshorts
 .venv/Scripts/python -m fittedperfection freeze                  # frozen copy of committed code for long batches
-.venv/Scripts/python -m fittedperfection view                    # 3D review viewer on http://127.0.0.1:8765/
+.venv/Scripts/python -m fittedperfection app                     # the app on http://127.0.0.1:8765/ (also: view)
 .venv/Scripts/python -m pytest
 ```
 
@@ -101,6 +101,19 @@ settings section, model pins, tools, the garment or bodies, and earlier stages' 
 
 There is one fit configuration, `fittedperfection/settings.py`, with no profiles or flags.
 The Meta models are pinned in `fittedperfection/models.py`.
+
+## The app
+
+`python -m fittedperfection app` opens the viewer, which can also fit new outfits:
+- **Fit a new outfit:** drop a generator archive (.zip) or pick a listed outfit, name the run and
+  press Start. It runs the same pipeline as `run`, in its own process, one fit at a time, with
+  each stage's progress and pictures as they appear.
+- **Spending:** a new outfit always starts with nothing allowed. If its SAM labels aren't cached,
+  it stops before sending anything and asks ("needs N SAM requests, about $X"), with an optional
+  Muse Wonder review. Only Approve spends, and finished stages are reused.
+- **Results:** when the fit completes, its four bodies appear in the viewer with the report and review.
+- **Safety:** the server listens on 127.0.0.1 only and accepts writes only from its own page.
+  Archives are checked by listing and never unpacked by the server. The API key stays with the pipeline.
 
 ## Viewer
 

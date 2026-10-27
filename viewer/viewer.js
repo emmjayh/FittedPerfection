@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { initApp } from './app.js';
 
 const GAP = 0.9;                       // metres between bodies when several are shown
 const SKIN_TONE = 0xd2a083;
@@ -279,13 +280,19 @@ function fillVersions() {
   if (versions.length) el('pick-version').value = versions[0].id;
 }
 
-async function start() {
+async function loadCatalog(selectRun) {
   catalog = await (await fetch('/api/catalog')).json();
   options(el('pick-outfit'), catalog.outfits.map((o, i) => [i, o.runs.join(' + ')]),
     catalog.outfits.length ? null : ['', 'no runs yet']);
+  const wanted = selectRun ? catalog.outfits.findIndex((o) => o.runs.includes(selectRun)) : -1;
+  if (wanted >= 0) el('pick-outfit').value = wanted;
+  fillVersions();
+}
+
+async function start() {
+  await loadCatalog();
   options(el('pick-body'), catalog.body_order.filter((b) => catalog.bodies[b])
     .map((b) => [b, `${b} (${catalog.bodies[b].sex})`]), ['all', 'All four']);
-  fillVersions();
 
   el('pick-outfit').addEventListener('change', () => { fillVersions(); rebuild(); });
   for (const id of ['pick-version', 'pick-compare', 'pick-body']) el(id).addEventListener('change', rebuild);
@@ -304,6 +311,9 @@ async function start() {
   }));
   window.addEventListener('resize', resize);
   rebuild();
+  // the app layer: a finished fit is loaded and shown straight away
+  initApp({ onComplete: async (name) => { await loadCatalog(name); rebuild(); } })
+    .catch((error) => say(`Fitting from the viewer is unavailable: ${error.message}`));
 }
 
 start().catch((error) => say(`Could not start: ${error.message}`));

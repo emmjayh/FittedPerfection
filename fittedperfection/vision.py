@@ -99,7 +99,8 @@ def run(ctx, out):
     total = sum(estimate[kind] for _, kind, _, _ in uncached)
     if total > sam.budget_usd + 1e-9:                       # all or nothing: never stop halfway through paying
         raise SpendRefused(f'vision needs {len(uncached)} new SAM requests, about ${total:.2f}; allowed '
-                           f'${sam.budget_usd:.2f}. Nothing was sent. Rerun with --allow-spend {total:.2f} to go ahead.')
+                           f'${sam.budget_usd:.2f}. Nothing was sent. Rerun with --allow-spend {total:.2f} to go ahead.',
+                           estimate_usd=total)
     if any(kind == 'video' for _, kind, _, _ in uncached):
         sam.upload(views/record['video'])                   # once, before the parallel requests
 
