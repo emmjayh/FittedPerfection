@@ -48,6 +48,9 @@ _VALUES = {
         'skin_colour_min_distance': 25.0,
         'skin_colour_spread_factor': 4.0,
         'confident_skin_score': 0.5,
+        'recover_skin_score': 0.35,        # SAM skin evidence that turns a skin-coloured garment face back to skin
+        'recover_skin_outlier_factor': 2.0,  # ...or this many skin limits away from its own label's median colour
+        'recover_skin_full_score': 0.1,    # full resolution: skin-tone faces with this much SAM skin evidence, joined to skin
         'leg_covered_share': 0.6,          # a leg band this covered by legwear/footwear turns its skin into it
         'limb_island_fraction': 0.05,      # islands smaller than this share of a limb take the limb's label
         'largest_unlabelled_share': 0.05,  # unidentified pieces bigger than this share stay 'none'
@@ -87,6 +90,7 @@ _VALUES = {
         'foot_length_of_height': 0.15,     # the foot a source shoe was made for, as a share of the figure's height
         'shoe_shaft_above_ankle_m': 0.03,  # footwear higher than this above the ankle is a shaft (wrapped, not rigid)
         'shoe_shaft_min_m': 0.15,          # ...when the footwear rises at least this far above that line (a boot)
+        'shoe_shaft_blend_m': 0.10,        # a shaft eases from the shoe's placement to the leg's over this height
         'shoe_sole_search_m': 0.08,        # the sole's edge is looked for this high from the bottom of the shoe
         'ghost_grid_m': 0.005,             # raster of the shoe height map used to hide covered body faces
         'rotation_smoothing_iterations': 3,  # smoothing of the per-vertex rotation field carrying full-res detail

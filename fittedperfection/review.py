@@ -239,7 +239,7 @@ def run(ctx, out):
     cage = read_textured_mesh(ctx.output_of('intake')/'CAGE.glb')
     garment = read_textured_mesh(ctx.output_of('intake')/'GARMENT.glb')
     labels = np.load(ctx.output_of('label')/'labels.npz')['labels'].astype(str)
-    face_labels = fullres.transfer_labels(garment.positions, garment.triangles, cage.positions, cage.triangles, labels)
+    face_labels = np.load(ctx.output_of('label')/'fullres-labels.npz')['labels'].astype(str)
     welded = meshes.weld(garment.positions)
     vertex_labels = fullres.vertex_labels(face_labels, garment.triangles, welded)[welded]
 
