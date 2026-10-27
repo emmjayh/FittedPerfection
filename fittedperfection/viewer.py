@@ -50,10 +50,21 @@ def fit_versions(run_folder, runs):
             continue
         reports = {body: link('runs', runs, folder/body/'fit.report.json')
                    for body in drafts if (folder/body/'fit.report.json').is_file()}
+        # the deliverable when there is one: the full-resolution outfit on the shown body (raised, covered faces
+        # hidden); older versions only have the cage draft and the plain body
+        outfits = {body: link('runs', runs, folder/body/'OUTFIT.glb') for body in drafts
+                   if (folder/body/'OUTFIT.glb').is_file()}
+        shown = {body: link('runs', runs, folder/body/'BODY.glb') for body in drafts
+                 if (folder/body/'BODY.glb').is_file()}
         newest = max((folder/body/'DRAFT.glb').stat().st_mtime for body in drafts)
         stale = int(match.group(2)) if match.group(2) else 0
+        review = run_folder/'review'
+        audits = {body: link('runs', runs, review/body/'audit.json') for body in drafts
+                  if stale == 0 and (review/body/'audit.json').is_file()}
+        wonder = link('runs', runs, review/'wonder.json') if stale == 0 and (review/'wonder.json').is_file() else None
         versions.append({'id': f'{run_folder.name}/{folder.name}', 'run': run_folder.name, 'folder': folder.name,
-                         'drafts': drafts, 'reports': reports, 'time': newest, '_order': (stale != 0, -stale)})
+                         'drafts': drafts, 'outfits': outfits, 'shown_bodies': shown, 'reports': reports,
+                         'audits': audits, 'wonder': wonder, 'time': newest, '_order': (stale != 0, -stale)})
     versions.sort(key=lambda version: version.pop('_order'))
     return versions
 

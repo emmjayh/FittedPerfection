@@ -23,6 +23,16 @@ SKIN_PROMPT = (
     'Empty lists if all is right.')
 
 
+FIT_PROMPT = (
+    'Top row: a 3D outfit from the front; bottom row: the same from the back. In each row the first figure is the '
+    'original outfit and the next four are the same outfit fitted onto four different bodies (shown in a flat skin '
+    'tone). Its parts: {parts}. Compare each fitted body with the original and list only real problems: skin '
+    'showing where the original covers it; design changes (sleeve or hem length, volume, shoe shape, missing or '
+    'moved hardware); holes, spikes or floating pieces. Reply with JSON only: {{"findings": [{{"body": 1-4, '
+    '"view": "front|back", "where": "...", "problem": "skin_showing|design_change|hole|spike|floating", '
+    '"what": "..."}}], "overall": "one sentence"}}. An empty list if nothing is wrong.')
+
+
 class WonderClient(SamClient):
     def review(self, prompt, image_paths, max_output_tokens=600, effort='low'):
         """Findings text for one prompt and some PNG images, with the cache record (no call if cached)."""

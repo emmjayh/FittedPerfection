@@ -116,8 +116,9 @@ async function rebuild() {
       built[key] = await Promise.all(bodies.map(async (body, i) => {
         const group = new THREE.Group();
         group.position.x = (i - (bodies.length - 1) / 2) * GAP;
-        const bodyUrl = catalog.bodies[body]?.url;
-        const draftUrl = version?.drafts[body];
+        // the deliverable when the version has it: the full-resolution outfit on the shown body
+        const bodyUrl = version?.shown_bodies?.[body] || catalog.bodies[body]?.url;
+        const draftUrl = version?.outfits?.[body] || version?.drafts[body];
         const [bodyModel, draftModel] = await Promise.all([
           bodyUrl ? instance(bodyUrl) : null,
           draftUrl ? instance(draftUrl) : null,
@@ -225,11 +226,36 @@ async function showReport(version, body) {
     const failed = Object.entries(report.gates || {}).filter(([, passed]) => !passed).map(([gate]) => gate);
     el('report').textContent = JSON.stringify({
       body, status: report.status, fit_reviewed: report.fit_reviewed, game_ready: report.game_ready,
-      failed_gates: failed,
+      root_offset_m: report.root_offset_m, failed_gates: failed,
+      stretch_cage: report.stretch_vs_source, stretch_full: report.full_resolution?.stretch_vs_source,
     }, null, 1);
   } catch (error) {
     el('report').textContent = `Could not read the report: ${error.message}`;
   }
+  showReview(version, body);
+}
+
+async function showReview(version, body) {
+  // spec §5.7: the audit and Muse Wonder's findings next to the fit; a checklist, never a verdict
+  const parts = [];
+  try {
+    if (version?.audits?.[body]) {
+      const audit = await (await fetch(version.audits[body])).json();
+      parts.push(JSON.stringify({
+        inside_body_rest: audit.rest?.inside_share,
+        inside_body_poses: Object.fromEntries(Object.entries(audit.poses || {}).map(([k, v]) => [k, v.inside_share])),
+        lost_coverage: Object.fromEntries(Object.entries(audit.coverage || {}).map(([k, v]) => [k, v.lost_share])),
+        silhouette: audit.silhouette?.mean_width_change,
+      }, null, 1));
+    }
+    if (version?.wonder) {
+      const wonder = await (await fetch(version.wonder)).json();
+      parts.push(`Muse Wonder: ${wonder.status}\n` + JSON.stringify(wonder.findings ?? {}, null, 1));
+    }
+  } catch (error) {
+    parts.push(`Could not read the review: ${error.message}`);
+  }
+  el('review').textContent = parts.length ? parts.join('\n\n') : 'No review yet (run the review stage).';
 }
 
 function say(text) { el('status').textContent = text; }
