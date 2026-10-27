@@ -15,6 +15,11 @@ D. wrap (fittedperfection/wrap.py): one coordinated solve that brings the cloth 
    each body's skin (keeping its relief and part of its looseness), keeps the local shape
    of the Step C result, holds contact outside the skin plus ease, and anchors rigid groups.
 
+E. shoes (fittedperfection/shoes.py), placed before D: each shoe scaled to the body's foot and
+   moved onto it with its footbed on the sole; only the part below the ankle is a rigid anchor
+   (boot shafts are wrapped). After D the fit is raised by the sole (root_offset_m) and the body
+   faces the shoes cover are listed as hidden (ghost removal); BODY.glb is the body as shown.
+
 No skinning (F) or full resolution (G) yet. Every output is a preview draft: fit_reviewed
 and game_ready are false.
 """
@@ -23,11 +28,11 @@ import json
 import numpy as np
 from scipy.spatial import cKDTree
 
-from . import body as bodies, config, donor, meshes, settings, wrap
+from . import body as bodies, config, donor, meshes, settings, shoes, wrap
 from .glbwrite import write_mesh
 from .gltf import read_textured_mesh
 
-CODE = ('fit.py', 'wrap.py', 'donor.py', 'body.py', 'bind.py', 'label.py', 'meshes.py', 'gltf.py', 'glbwrite.py')
+CODE = ('fit.py', 'wrap.py', 'shoes.py', 'donor.py', 'body.py', 'bind.py', 'label.py', 'meshes.py', 'gltf.py', 'glbwrite.py')
 REGION_OF = {'sleeve': 'arm', 'cuff': 'arm', 'pant_leg': 'leg', 'footwear': 'leg', 'pants': 'hips',
              'hanging': 'hanging'}
 RIGID_CLASSES = ('hardware',)
@@ -277,9 +282,32 @@ def run(ctx, out):
     rest_points = unpose(unique_points, regions, built, config_fit, adjacency, band)
     rest_points, rigid_unpose = place_rigid(unique_points, rest_points, groups)
 
+    # Step E, measured once: each shoe's sole thickness, the donor's foot inside it, and the shaft above the ankle
+    # (cloth for the wrap); only the shoe below the ankle line is a rigid anchor
+    shoe_parts = {}
+    for group in groups:
+        if not group['name'].startswith('shoe.'):
+            continue
+        side = group['name'].split('.')[1]
+        bone = body.bone_names.index(shoes.SIDES[side])
+        donor_foot = shoes.foot_points(body, built['posed'], side)
+        ankle = donor.apply(built['posed_bones'][bone], body.joint(shoes.SIDES[side]))[2] - donor_foot[:, 2].min()
+        thickness, found = shoes.sole_thickness(unique_points[group['vertices']], config_fit['shoe_sole_search_m'])
+        # the ankle inside the shoe stands on the sole; only a real boot shaft (well above it) is cloth
+        line = unique_points[group['vertices'], 2].min() + thickness + ankle + config_fit['shoe_shaft_above_ankle_m']
+        tall = unique_points[group['vertices'], 2].max() - line >= config_fit['shoe_shaft_min_m']
+        shaft = shoes.shaft(group['vertices'], unique_points, line) if tall else np.zeros(0, dtype=np.int64)
+        shoe_parts[side] = {'vertices': group['vertices'], 'thickness': thickness, 'edge_found': found,
+                            'shaft': shaft, 'donor_foot': donor_foot,
+                            'faces': unique_triangles[labels == f'footwear.{side}']}
+    # a pair stands on one sole: the thicker measured edge (or the default when neither was found)
+    measured = [p['thickness'] for p in shoe_parts.values() if p['edge_found']]
+    for part in shoe_parts.values():
+        part['thickness'] = max(measured) if measured else part['thickness']
     keep = labels != 'skin'
     looseness_kept = wrap.point_keep(labels, unique_triangles, len(unique_points), config_fit['wrap_keep'])
     rigid = np.unique(np.concatenate([g['vertices'] for g in groups])) if groups else np.zeros(0, dtype=np.int64)
+    rigid = np.setdiff1d(rigid, np.concatenate([p['shaft'] for p in shoe_parts.values()]) if shoe_parts else [])
     cloth = np.unique(unique_triangles[keep & ~np.char.startswith(labels, 'footwear')])
     summary = {}
     for target in config.BODIES:
@@ -290,6 +318,14 @@ def run(ctx, out):
         fitted = transfer(rest_points, regions, built['rest'], target_rest, body, donor_crotch, config_fit,
                           adjacency, band)
         fitted, rigid_transfer = place_rigid(rest_points, fitted, groups, config_fit['rigid_max_rotation_degrees'])
+        shoe_record = {}
+        for side, part in shoe_parts.items():                         # Step E: each shoe onto this body's foot
+            move, shoe_record[side] = shoes.placement(unique_points[part['vertices']], part['donor_foot'],
+                                                      shoes.foot_points(target_body, target_rest, side),
+                                                      part['thickness'],
+                                                      config_fit['foot_length_of_height'] * binding['height_m'])
+            fitted[part['vertices']] = move(unique_points[part['vertices']])
+            shoe_record[side].update(edge_found=part['edge_found'], shaft_points=int(len(part['shaft'])))
         skin = wrap.Skin(target_rest, target_body.triangles, bare_skin(target_body))
         before = {'offsets': wrap.offsets(fitted, skin, cloth),
                   'stretch': stretch(cage.positions, fitted[welded], cage.triangles, keep)}
@@ -300,6 +336,21 @@ def run(ctx, out):
                                                                           config_fit['seam_blend_iterations']))
         wrap_record['before'] = before
         wrap_record['after'] = {'offsets': wrap.offsets(fitted, skin, cloth)}
+        # raise everything by the sole so the shoes stand on the floor (the body is offset, never changed), then
+        # hide the body faces the shoes cover or that poke through them
+        lift = max([-float(fitted[p['vertices'], 2].min()) for p in shoe_parts.values()], default=0.0)
+        fitted = fitted + [0.0, 0.0, lift]
+        body_lifted = target_rest + [0.0, 0.0, lift]
+        hidden = np.zeros(0, dtype=np.int64)
+        for side, part in shoe_parts.items():
+            own = np.unique(part['faces'])
+            covered = shoes.hidden_faces(body_lifted, target_body.triangles, fitted[own],
+                                         np.searchsorted(own, part['faces']), config_fit['ghost_grid_m'])
+            shoe_record[side]['hidden_body_faces'] = int(len(covered))
+            hidden = np.union1d(hidden, covered)
+        np.save(folder/'hidden_body_faces.npy', hidden)
+        write_mesh(folder/'BODY.glb', body_lifted, np.delete(target_body.triangles, hidden, axis=0),
+                   colour=(0.82, 0.63, 0.51, 1.0), name=f'{target}-shown')
         positions = fitted[welded]
         stretched = stretch(cage.positions, positions, cage.triangles, keep)
         np.savez_compressed(folder/'cage-fit.npz', positions=positions.astype(np.float32),
@@ -307,8 +358,10 @@ def run(ctx, out):
                             rest_positions=rest_points[welded].astype(np.float32), regions=regions[welded].astype(str))
         write_mesh(folder/'DRAFT.glb', positions, cage.triangles[keep], uvs=cage.uvs, texture_png=cage.texture_png,
                    name=f'{target}-draft')
-        report = {'status': 'preview_steps_A-D', 'body': target, 'fit_reviewed': False, 'game_ready': False,
-                  'note': 'cage preview: no shoes step (E), skinning (F) or full resolution (G) yet',
+        report = {'status': 'preview_steps_A-E', 'body': target, 'fit_reviewed': False, 'game_ready': False,
+                  'note': 'cage preview: no skinning (F) or full resolution (G) yet',
+                  'root_offset_m': round(float(lift), 4), 'shoes': shoe_record,
+                  'hidden_body_faces': int(len(hidden)),
                   'settings': json.loads(json.dumps(dict(config_fit), default=list)),
                   'donor': built['record'], 'rigid_groups': {'unpose': rigid_unpose, 'transfer': rigid_transfer},
                   'wrap': wrap_record, 'stretch_vs_source': stretched, 'gates': {}}
