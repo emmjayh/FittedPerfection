@@ -1,7 +1,8 @@
 """Review renders for fit work (Blender, outside the seal). Not a pipeline stage: it writes to runs/_review/.
 
     python -m fittedperfection preview NAME --donor     the donor (Step A) inside the outfit's cage
-    python -m fittedperfection preview NAME --fit       the source, then every body wearing its draft
+    python -m fittedperfection preview NAME --fit       the source, then every body wearing its outfit
+    python -m fittedperfection preview NAME --pose      every body and outfit in the test pose
 """
 import json
 import subprocess
@@ -24,9 +25,9 @@ def donor_inputs(run_folder):
     return binding, labels, centres, areas
 
 
-def render(items, out, name):
+def render(items, out, name, pose=False):
     command = [str(config.blender()), '--background', '--factory-startup', '--python-exit-code', '1', '--python',
-               str(SCRIPT), '--', '--out', str(out), '--name', name]
+               str(SCRIPT), '--', '--out', str(out), '--name', name] + (['--pose'] if pose else [])
     for item in items:
         command += ['--item', item]
     log = out/f'{name}.log'
@@ -47,14 +48,17 @@ def donor_preview(name):
     return out, built['record']
 
 
-def fit_preview(name, spacing=1.3):
+def fit_preview(name, spacing=1.3, pose=False):
+    """The source, then each body (BODY.glb: raised, covered faces hidden) wearing its full-resolution OUTFIT.glb
+    (or the cage DRAFT.glb before Step G existed). pose: elbows and knees bent (spec §5.7 test pose)."""
     run_folder = config.runs_folder()/name
-    out = config.runs_folder()/'_review'/f'fit-{name}'
+    out = config.runs_folder()/'_review'/(f'pose-{name}' if pose else f'fit-{name}')
     out.mkdir(parents=True, exist_ok=True)
-    items = [f'{run_folder/"full"/"CAGE.glb"}|texture|0']
+    items = [] if pose else [f'{run_folder/"full"/"CAGE.glb"}|texture|0']
     for i, body in enumerate(config.BODIES, start=1):
-        shown = run_folder/'fit'/body/'BODY.glb'                  # raised by the sole, covered faces hidden
+        folder = run_folder/'fit'/body
+        shown, outfit = folder/'BODY.glb', folder/'OUTFIT.glb'
         items += [f'{shown if shown.is_file() else config.body_file(body)}|skin|{i * spacing}',
-                  f'{run_folder/"fit"/body/"DRAFT.glb"}|texture|{i * spacing}']
-    render(items, out, name)
+                  f'{outfit if outfit.is_file() else folder/"DRAFT.glb"}|texture|{i * spacing}']
+    render(items, out, name, pose)
     return out

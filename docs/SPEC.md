@@ -58,6 +58,13 @@ These decisions override the original text below where they differ.
     (`hidden_body_faces.npy`). `BODY.glb` is the body as shown.
   - **Boot shafts:** footwear rising at least 15 cm above the ankle line is wrapped with the
     clothes (Step D), not warped separately; lower shoes stay fully rigid.
+- **Steps F–G deliverable:** `fit/<body>/OUTFIT.glb` is the full-resolution outfit with its
+  texture, skinned to the body's own skeleton (4 influences), with a root node carrying
+  `root_offset_m`. `BODY.glb` is the shown body (covered faces hidden) on the same skeleton.
+  - Full-resolution vertices bind to cage faces of their own label, so a trouser hem never binds
+    to the boot under it.
+  - Hanging cloth above the knees takes pelvis-led weights, so tails follow the hips.
+  - `preview --pose` checks the skinning in the §5.7 test pose (elbows 60°, knees 30°).
 
 ---
 

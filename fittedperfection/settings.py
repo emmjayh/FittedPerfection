@@ -89,6 +89,8 @@ _VALUES = {
         'shoe_shaft_min_m': 0.15,          # ...when the footwear rises at least this far above that line (a boot)
         'shoe_sole_search_m': 0.08,        # the sole's edge is looked for this high from the bottom of the shoe
         'ghost_grid_m': 0.005,             # raster of the shoe height map used to hide covered body faces
+        'rotation_smoothing_iterations': 3,  # smoothing of the per-vertex rotation field carrying full-res detail
+        'fullres_scale_range': [0.5, 2.0],   # local scale applied to full-res offsets, clamped
         'max_influences': 4,
     },
     'audit': {

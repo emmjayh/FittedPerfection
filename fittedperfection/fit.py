@@ -20,7 +20,11 @@ E. shoes (fittedperfection/shoes.py), placed before D: each shoe scaled to the b
    (boot shafts are wrapped). After D the fit is raised by the sole (root_offset_m) and the body
    faces the shoes cover are listed as hidden (ghost removal); BODY.glb is the body as shown.
 
-No skinning (F) or full resolution (G) yet. Every output is a preview draft: fit_reviewed
+G. full resolution (fittedperfection/fullres.py): GARMENT.glb bound to the source cage by label,
+   rebuilt on each fitted cage with a smooth rotation field (rigid groups as exact copies).
+F. skinning: weights from each body's rig, top 4, rigid groups shared. OUTFIT.glb is the
+   full-resolution outfit skinned to the body's skeleton, BODY.glb the body as shown (covered
+   faces hidden); both carry the root offset. DRAFT.glb stays as the cage preview. Every output is a preview draft: fit_reviewed
 and game_ready are false.
 """
 import json
@@ -28,11 +32,11 @@ import json
 import numpy as np
 from scipy.spatial import cKDTree
 
-from . import body as bodies, config, donor, meshes, settings, shoes, wrap
+from . import body as bodies, config, donor, fullres, meshes, settings, shoes, wrap
 from .glbwrite import write_mesh
 from .gltf import read_textured_mesh
 
-CODE = ('fit.py', 'wrap.py', 'shoes.py', 'donor.py', 'body.py', 'bind.py', 'label.py', 'meshes.py', 'gltf.py', 'glbwrite.py')
+CODE = ('fit.py', 'wrap.py', 'shoes.py', 'fullres.py', 'donor.py', 'body.py', 'bind.py', 'label.py', 'meshes.py', 'gltf.py', 'glbwrite.py')
 REGION_OF = {'sleeve': 'arm', 'cuff': 'arm', 'pant_leg': 'leg', 'footwear': 'leg', 'pants': 'hips',
              'hanging': 'hanging'}
 RIGID_CLASSES = ('hardware',)
@@ -221,17 +225,23 @@ def stretch(source, fitted, triangles, keep):
             'p99_ratio': round(float(np.percentile(ratio, 99)), 3)}
 
 
-def skin_regions(target, regions):
+def skin_regions(target, regions, weights=None):
     """(region, point indices, skin faces) for the wrap: each cage point measures against the skin of its own
     region (arm, leg, trunk), so baggy inner legs never measure against the other leg. Trouser seats (hips)
-    measure against the trunk and both legs; free-hanging and unknown points against the whole skin."""
+    measure against the trunk and both legs; free-hanging and unknown points against the whole skin.
+    weights (Step F, the points' positions): hanging cloth above the knees takes its weights from the
+    pelvis-led skin, so tails follow the hips rather than whichever thigh is nearest; below the knees
+    (straps at the ankle) it follows the nearest skin like everything else."""
     crotch = bodies.landmarks(target)['crotch_height_m']
     sets = donor_region_sets(target, target.positions, crotch)
     sets['hips'] = np.unique(np.concatenate([sets['trunk'], sets['leg.left'], sets['leg.right']]))
+    if weights is not None:
+        knee = min(target.joint('lowerleg01.L')[2], target.joint('lowerleg01.R')[2])
+        regions = np.where((regions == 'hanging') & (weights[:, 2] < knee), '', regions).astype(object)
     out = []
     for region in np.unique(regions):
         chosen = np.flatnonzero(regions == region)
-        if region in ('', 'hanging') or region not in sets:
+        if region == '' or region not in sets or (region == 'hanging' and weights is None):
             out.append(('all', chosen, np.arange(len(target.triangles))))
             continue
         member = np.zeros(len(target.positions), dtype=bool)
@@ -309,6 +319,19 @@ def run(ctx, out):
     rigid = np.unique(np.concatenate([g['vertices'] for g in groups])) if groups else np.zeros(0, dtype=np.int64)
     rigid = np.setdiff1d(rigid, np.concatenate([p['shaft'] for p in shoe_parts.values()]) if shoe_parts else [])
     cloth = np.unique(unique_triangles[keep & ~np.char.startswith(labels, 'footwear')])
+
+    # Step G1, once: bind the full-resolution outfit to the source cage (one result per welded vertex: twins agree)
+    garment = read_textured_mesh(ctx.output_of('intake')/'GARMENT.glb')
+    full_welded = meshes.weld(garment.positions)
+    full_points = garment.positions[np.unique(full_welded, return_index=True)[1]]
+    full_face_labels = fullres.transfer_labels(garment.positions, garment.triangles, cage.positions, cage.triangles,
+                                               labels)
+    full_binding = fullres.bind(full_points, fullres.vertex_labels(full_face_labels, garment.triangles, full_welded),
+                                unique_points, unique_triangles, labels)
+    full_regions = regions[unique_triangles[full_binding['face'], 0]]
+    full_keep = full_face_labels != 'skin'
+    shafts = np.concatenate([p['shaft'] for p in shoe_parts.values()]) if shoe_parts else np.zeros(0, dtype=np.int64)
+    rigid_parts = [np.setdiff1d(g['vertices'], shafts) for g in groups]
     summary = {}
     for target in config.BODIES:
         folder = out/target
@@ -349,8 +372,35 @@ def run(ctx, out):
             shoe_record[side]['hidden_body_faces'] = int(len(covered))
             hidden = np.union1d(hidden, covered)
         np.save(folder/'hidden_body_faces.npy', hidden)
-        write_mesh(folder/'BODY.glb', body_lifted, np.delete(target_body.triangles, hidden, axis=0),
-                   colour=(0.82, 0.63, 0.51, 1.0), name=f'{target}-shown')
+        skeleton = config.body_file(target)
+        body_joints, body_weights = fullres.top_influences(np.arange(len(target_rest)), target_body.joints,
+                                                           target_body.weights, len(target_rest),
+                                                           config_fit['max_influences'])
+        write_mesh(folder/'BODY.glb', target_rest, np.delete(target_body.triangles, hidden, axis=0),
+                   colour=(0.82, 0.63, 0.51, 1.0), name=f'{target}-shown',
+                   skin={'joints': body_joints, 'weights': body_weights, 'skeleton': skeleton, 'root_offset_m': lift})
+
+        # Steps G2 and F: rebuild the full resolution on the fitted cage, then skin it to this body's rig (weights
+        # measured in the body's own frame; the root offset carries the lift)
+        rotation = fullres.rotation_field(unique_points, fitted, unique_triangles,
+                                          config_fit['rotation_smoothing_iterations'])
+        local_scale = fullres.scale_field(unique_points, fitted, unique_triangles, config_fit['fullres_scale_range'])
+        full_fit, full_group = fullres.rebuild(full_binding, full_points, unique_points, fitted, unique_triangles,
+                                               rotation, local_scale, rigid_parts)
+        full_fit -= [0.0, 0.0, lift]
+        joints, weights = fullres.skin_weights(full_fit, skin_regions(target_body, full_regions, weights=full_fit), skin,
+                                               target_body.joints, target_body.weights, full_group,
+                                               config_fit['max_influences'])
+        write_mesh(folder/'OUTFIT.glb', full_fit[full_welded], garment.triangles[full_keep], uvs=garment.uvs,
+                   texture_png=garment.texture_png, name=f'{target}-outfit',
+                   skin={'joints': joints[full_welded], 'weights': weights[full_welded], 'skeleton': skeleton,
+                         'root_offset_m': lift})
+        full_record = {'vertices': int(len(garment.positions)), 'faces_kept': int(full_keep.sum()),
+                       'binding_distance_cm': {'p50': round(float(np.percentile(full_binding['distance'], 50)) * 100, 2),
+                                               'p99': round(float(np.percentile(full_binding['distance'], 99)) * 100, 2)},
+                       'stretch_vs_source': stretch(garment.positions, full_fit[full_welded], garment.triangles,
+                                                    full_keep),
+                       'influences_used_mean': round(float((weights > 1e-6).sum(axis=1).mean()), 2)}
         positions = fitted[welded]
         stretched = stretch(cage.positions, positions, cage.triangles, keep)
         np.savez_compressed(folder/'cage-fit.npz', positions=positions.astype(np.float32),
@@ -358,9 +408,9 @@ def run(ctx, out):
                             rest_positions=rest_points[welded].astype(np.float32), regions=regions[welded].astype(str))
         write_mesh(folder/'DRAFT.glb', positions, cage.triangles[keep], uvs=cage.uvs, texture_png=cage.texture_png,
                    name=f'{target}-draft')
-        report = {'status': 'preview_steps_A-E', 'body': target, 'fit_reviewed': False, 'game_ready': False,
-                  'note': 'cage preview: no skinning (F) or full resolution (G) yet',
-                  'root_offset_m': round(float(lift), 4), 'shoes': shoe_record,
+        report = {'status': 'preview_steps_A-G', 'body': target, 'fit_reviewed': False, 'game_ready': False,
+                  'note': 'OUTFIT.glb is the full-resolution outfit skinned to this body; not reviewed',
+                  'root_offset_m': round(float(lift), 4), 'shoes': shoe_record, 'full_resolution': full_record,
                   'hidden_body_faces': int(len(hidden)),
                   'settings': json.loads(json.dumps(dict(config_fit), default=list)),
                   'donor': built['record'], 'rigid_groups': {'unpose': rigid_unpose, 'transfer': rigid_transfer},
