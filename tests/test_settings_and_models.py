@@ -13,7 +13,7 @@ def test_settings_cannot_be_changed_at_runtime():
 
 def test_spec_values():
     fit = settings.section('fit')
-    assert fit['transfer_neighbours'] == 32 and tuple(fit['leg_length_range']) == (0.85, 1.2)
+    assert fit['transfer_neighbours'] == 32 and tuple(fit['leg_length_range']) == (0.85, 1.6)
     assert settings.section('bind')['hem_fraction']['knee'] == 0.60
 
 

@@ -1,6 +1,7 @@
 """Review renders for fit work (Blender, outside the seal). Not a pipeline stage: it writes to runs/_review/.
 
     python -m fittedperfection preview NAME --donor     the donor (Step A) inside the outfit's cage
+    python -m fittedperfection preview NAME --fit       the source, then every body wearing its draft
 """
 import json
 import subprocess
@@ -44,3 +45,14 @@ def donor_preview(name):
     (out/'donor.json').write_text(json.dumps(built['record'], indent=1), encoding='utf-8')
     render([f'{run_folder/"full"/"CAGE.glb"}|texture', f'{out/"donor.glb"}|skin'], out, name)
     return out, built['record']
+
+
+def fit_preview(name, spacing=1.3):
+    run_folder = config.runs_folder()/name
+    out = config.runs_folder()/'_review'/f'fit-{name}'
+    out.mkdir(parents=True, exist_ok=True)
+    items = [f'{run_folder/"full"/"CAGE.glb"}|texture|0']
+    for i, body in enumerate(config.BODIES, start=1):
+        items += [f'{config.body_file(body)}|skin|{i * spacing}', f'{run_folder/"fit"/body/"DRAFT.glb"}|texture|{i * spacing}']
+    render(items, out, name)
+    return out

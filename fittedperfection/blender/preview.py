@@ -39,14 +39,15 @@ def parse_item(item):
     return parts[0], (parts[1] if len(parts) > 1 else 'texture'), float(parts[2]) if len(parts) > 2 else 0.0
 
 
-def import_item(path, style, offset_x):
+def import_item(path, style, offset, axis):
     before = set(bpy.data.objects)
     bpy.ops.import_scene.gltf(filepath=path)
     added = [obj for obj in bpy.data.objects if obj not in before]
     for obj in added:
         if obj.parent is None:
-            obj.location.x += offset_x
-    meshes = [obj for obj in added if obj.type == 'MESH' and obj.name != 'Icosphere']
+            obj.location[axis] += offset if axis == 0 else -offset
+    meshes = [obj for obj in added if obj.type == 'MESH' and not obj.name.startswith('Icosphere')
+              and (obj.parent is None or obj.parent.type == 'ARMATURE' or obj.parent.type == 'EMPTY')]
     if style in COLOURS:
         material = bpy.data.materials.new(style)
         material.diffuse_color = COLOURS[style]
@@ -81,30 +82,33 @@ def main():
     shading.light, shading.color_type = 'STUDIO', 'TEXTURE'
     shading.show_backface_culling = False
     scene.render.image_settings.file_format = 'PNG'
-    meshes = []
-    for item in args.item:
-        path, style, offset = parse_item(item)
-        meshes += import_item(path, style, offset)
-    low, high = bounds(meshes)
     camera = bpy.data.objects.new('camera', bpy.data.cameras.new('camera'))
     camera.data.type = 'ORTHO'
     scene.collection.objects.link(camera)
     scene.camera = camera
     out = Path(args.out)
-    for xray in (False, True):
-        shading.show_xray = xray
-        shading.xray_alpha = 0.45
-        for view in ('front', 'side'):
-            centre = (low + high) / 2
-            width = (high.x - low.x) if view == 'front' else (high.y - low.y)
-            tall = high.z - low.z
-            camera.data.ortho_scale = max(width, tall) * 1.06
-            if view == 'front':
-                camera.location, camera.rotation_euler = (centre.x, low.y - 10, centre.z), (math.pi / 2, 0, 0)
-            else:
-                camera.location, camera.rotation_euler = (high.x + 10, centre.y, centre.z), (math.pi / 2, 0, math.pi / 2)
-            scale = 1200 / max(width, tall)
-            scene.render.resolution_x, scene.render.resolution_y = max(64, int(width * scale * 1.06)), int(tall * scale * 1.06)
+    # Figures stand in a row across the front view and in a row along the depth for the side view,
+    # so each camera sees them next to each other rather than behind one another.
+    for view, axis in (('front', 0), ('side', 1)):
+        for obj in [o for o in bpy.data.objects if o.type != 'CAMERA']:
+            bpy.data.objects.remove(obj, do_unlink=True)
+        meshes = []
+        for item in args.item:
+            path, style, offset = parse_item(item)
+            meshes += import_item(path, style, offset, axis)
+        low, high = bounds(meshes)
+        centre = (low + high) / 2
+        width = (high.x - low.x) if view == 'front' else (high.y - low.y)
+        tall = high.z - low.z
+        camera.data.ortho_scale = max(width, tall) * 1.06
+        if view == 'front':
+            camera.location, camera.rotation_euler = (centre.x, low.y - 10, centre.z), (math.pi / 2, 0, 0)
+        else:
+            camera.location, camera.rotation_euler = (high.x + 10, centre.y, centre.z), (math.pi / 2, 0, math.pi / 2)
+        scale = 1200 / max(width, tall)
+        scene.render.resolution_x, scene.render.resolution_y = max(64, int(width * scale * 1.06)), int(tall * scale * 1.06)
+        for xray in (False, True):
+            shading.show_xray, shading.xray_alpha = xray, 0.45
             scene.render.filepath = str(out/f'{args.name}{"-xray" if xray else ""}-{view}.png')
             bpy.ops.render.render(write_still=True)
 

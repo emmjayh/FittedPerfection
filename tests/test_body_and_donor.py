@@ -73,3 +73,11 @@ def test_glb_writer_round_trips(tmp_path):
     write_mesh(tmp_path/'t.glb', positions, [[0, 1, 2]], uvs=np.array([[0, 0], [1, 0], [0, 1.0]]))
     mesh = read_textured_mesh(tmp_path/'t.glb')
     assert np.allclose(mesh.positions, positions, atol=1e-6) and mesh.triangles.tolist() == [[0, 1, 2]]
+
+
+@needs_bodies
+def test_body_shoulder_top_sits_on_the_trunk_just_above_the_arm_roots():
+    marks = body.landmarks(body.load('body_01_medium'))
+    roots, top = marks['shoulders']['centre'][2], marks['shoulder_top']['centre'][2]
+    assert marks['shoulder_top']['method'].startswith('shoulder_top')
+    assert 0.0 < top - roots < 0.06                       # not the neck or the head
