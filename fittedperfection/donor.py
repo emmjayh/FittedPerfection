@@ -21,7 +21,6 @@ import numpy as np
 from . import body as bodies
 
 MIN_CUFF_FACES = 20              # a sleeve end counts as a cuff (the wrist) with at least this many cuff faces
-NECK_CLEARANCE_M = 0.03          # the head starts this far above the top of the neck cloth
 NECK_RADIUS_M = 0.12             # neck cloth: torso/collar this close to the centre line, above the shoulders
 ANKLE_ALONG_SOLE = 0.25          # the ankle stands over this share of the sole, from the heel
 GARMENT_PARTS = {
@@ -101,17 +100,19 @@ def build(binding, labels, garment_centres, garment_areas, config, body_id='body
     rest0 = bodies.skin(body, per_bone)
     stand = translation([0, 0, -rest0[:, 2].min()])
 
-    # 2b. neck length: generator figures often have longer necks, so a neckline that reaches up the garment's neck
-    #     would land on the donor's chin and face. The neck lengthens (never shortens, clamped) so the head starts
-    #     just above the top of the garment's neck cloth (torso and collar near the centre line; hoods excluded).
+    # 2b. neck length: generator figures are headless with long neck stubs, and their neck cloth runs to the top of
+    #     the stub. Mapped as it is, a neckline lands on the donor's chin. The neck lengthens (never shortens,
+    #     clamped) so the top of the neck cloth (torso, collar and a hood's neck near the centre line) sits at a set
+    #     share of the donor's neck, from its base to the skull.
     record['neck_scale'] = 1.0
-    neck_cloth = np.isin(labels, ('torso', 'collar')) & (garment_centres[:, 2] > garment_shoulder[2]) &         (np.linalg.norm(garment_centres[:, :2] - garment_shoulder[:2], axis=1) < NECK_RADIUS_M)
+    neck_cloth = np.isin(labels, ('torso', 'collar', 'hood')) & (garment_centres[:, 2] > garment_shoulder[2]) &         (np.linalg.norm(garment_centres[:, :2] - garment_shoulder[:2], axis=1) < NECK_RADIUS_M)
     if neck_cloth.sum() >= 20:
         neck_top = float(np.percentile(garment_centres[neck_cloth, 2], 98))
         base = apply(stand @ shape, body.joint('neck01'))
         head = apply(stand @ shape, body.joint('head'))
         low, high = config['neck_length_range']
-        neck_scale = float(np.clip((neck_top + NECK_CLEARANCE_M - base[2]) / (head[2] - base[2]), low, high))
+        share = config['neck_top_share']
+        neck_scale = float(np.clip((neck_top - base[2]) / (share * (head[2] - base[2])), low, high))
         record.update(neck_scale=round(neck_scale, 4), neck_top_m=round(neck_top, 4))
         neck = bodies._descendants(body.parents, body.bone_names.index('neck01'))
         above = bodies._descendants(body.parents, body.bone_names.index('head'))

@@ -38,9 +38,11 @@ These decisions override the original text below where they differ.
 - **Donor legs aim over the rear quarter of the sole** (heel to toe, from bind). The leg
   centreline ends at the front of the shoe, and a tall boot's "ankle" is its shaft top; aiming at
   either tilted the legs, so tights and boots sat off-centre on every body.
-- **Donor neck length (new in Step A):** generator figures often have longer necks. The donor's
-  neck lengthens, never shortens, clamped to 1.0–1.6, so its head starts 3 cm above the top of the
-  garment's neck cloth. Without it, turtlenecks and chokers landed on the bodies' chins and mouths.
+- **Donor neck length (new in Step A):** generator figures are headless with long neck stubs, and their
+  neck cloth runs to the top of the stub. The donor's neck lengthens (never shortens, clamped to 1.0–3.0)
+  so the top of the garment's neck cloth (torso, collar and a hood's neck) sits 55% of the way up the neck
+  (`neck_top_share`). Without it, collars landed on the bodies' chins. Putting the cloth top right under the
+  head instead left every neckline at the jaw.
 - **Donor arm length (new in Step A):** a cuff sits at the wrist. Where a sleeve has a labelled cuff,
   the donor's arm stretches along itself (0.7–1.5) until its wrist meets the cuff's centre, so sleeves
   map elbow to elbow and wrist to wrist. Without a cuff the arm keeps its length. The generator
