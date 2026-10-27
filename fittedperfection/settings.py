@@ -51,6 +51,9 @@ _VALUES = {
         'recover_skin_score': 0.35,        # SAM skin evidence that turns a skin-coloured garment face back to skin
         'recover_skin_outlier_factor': 2.0,  # ...or this many skin limits away from its own label's median colour
         'recover_skin_full_score': 0.1,    # full resolution: skin-tone faces with this much SAM skin evidence, joined to skin
+        'print_contrast': 60.0,            # a print stands this far (RGB) from its garment part's median colour
+        'print_min_faces': 6,              # ...in a connected piece of at least this many cage faces
+        'print_edge_jump': 120.0,          # ...near a sharp colour edge (RGB jump between neighbouring faces)
         'leg_covered_share': 0.6,          # a leg band this covered by legwear/footwear turns its skin into it
         'limb_island_fraction': 0.05,      # islands smaller than this share of a limb take the limb's label
         'largest_unlabelled_share': 0.05,  # unidentified pieces bigger than this share stay 'none'
@@ -87,6 +90,7 @@ _VALUES = {
         'wrap_bulk_radius_m': 0.06,        # looseness is the height above the skin smoothed over this radius
         'wrap_target_weight': 0.5,
         'contact_weight': 5.0,
+        'print_stiffness': 20.0,           # printed designs (logos, text) are this much stiffer in the wrap
         'contact_rounds': 4,
         'arap_iterations': 8,
         'foot_length_of_height': 0.15,     # the foot a source shoe was made for, as a share of the figure's height

@@ -157,12 +157,14 @@ def best_rotations(reference, current, edges, count):
     return rotation
 
 
-def solve(start, triangles, keep, skin, faces_of_point, rigid, config, height, blend=None):
+def solve(start, triangles, keep, skin, faces_of_point, rigid, config, height, blend=None, printed=None):
     """Step D on one body. start: Step C points (also the shape reference); each point measures its height
     against its own region's skin.
     rigid: indices of hard-anchored points. faces_of_point: (region name, point indices, skin faces).
     blend: optional function that smooths a per-point field across label seams (regions measure against
-    different skin, so their wrap moves must meet smoothly). Returns the solved points and a record."""
+    different skin, so their wrap moves must meet smoothly). printed: indices of points in printed designs; edges
+    between them are `print_stiffness` times stiffer, so logos and text keep their shape while plain fabric
+    takes up the wrap. Returns the solved points and a record."""
     count = len(start)
     edges = edges_of(triangles)
     edge_length = float(np.median(np.linalg.norm(start[edges[:, 0]] - start[edges[:, 1]], axis=1)))
@@ -205,7 +207,12 @@ def solve(start, triangles, keep, skin, faces_of_point, rigid, config, height, b
     targets = start + move
 
     i, j = edges[:, 0], edges[:, 1]
-    laplacian = coo_matrix((np.ones(2 * len(i)), (np.r_[i, j], np.r_[j, i])), shape=(count, count)).tocsr()
+    stiffness = np.ones(len(i))
+    if printed is not None and len(printed):
+        in_print = np.zeros(count, dtype=bool)
+        in_print[printed] = True
+        stiffness[in_print[i] & in_print[j]] = config['print_stiffness']
+    laplacian = coo_matrix((np.r_[stiffness, stiffness], (np.r_[i, j], np.r_[j, i])), shape=(count, count)).tocsr()
     laplacian = diags(np.asarray(laplacian.sum(axis=1)).ravel()) - laplacian
     anchored = np.zeros(count, dtype=bool)
     anchored[rigid] = True
@@ -226,7 +233,7 @@ def solve(start, triangles, keep, skin, faces_of_point, rigid, config, height, b
         for _ in range(config['arap_iterations']):
             rotation = best_rotations(reference, current, edges, count)
             d = reference[i] - reference[j]
-            term = 0.5 * np.einsum('eab,eb->ea', rotation[i] + rotation[j], d)
+            term = stiffness[:, None] * 0.5 * np.einsum('eab,eb->ea', rotation[i] + rotation[j], d)
             rhs = np.zeros((count, 3))
             np.add.at(rhs, i, term)
             np.add.at(rhs, j, -term)

@@ -101,3 +101,32 @@ def test_connected_to_follows_shared_vertices_within_the_member_faces():
     assert label.connected_to(triangles, welded, member, seeds).tolist() == [True, True, True, False]
     member[1] = False                                                         # the bridge is not a member
     assert label.connected_to(triangles, welded, member, seeds).tolist() == [True, False, False, False]
+
+
+def strip_graph(n):
+    graph = chain(n)
+    return graph
+
+
+def test_a_sharp_dark_mark_on_a_light_part_is_a_print():
+    labels = np.array(['torso'] * 80, dtype=object)
+    colours = np.full((80, 3), 220.0)
+    colours[30:40] = 20.0                                                   # a dark logo, sharp edges
+    prints, pieces = label.detect_prints(labels, colours, chain(80), 60.0, 6, 120.0)
+    assert pieces == 1 and prints[30:40].all() and prints.sum() == 10
+
+
+def test_gradual_shading_and_specks_are_not_prints():
+    labels = np.array(['torso'] * 80, dtype=object)
+    shading = np.linspace(120, 255, 80)[:, None].repeat(3, axis=1)        # baked-in light: far from the median, no edge
+    assert label.detect_prints(labels, shading, chain(80), 60.0, 6, 120.0)[0].sum() == 0
+    speck = np.full((80, 3), 220.0)
+    speck[10:12] = 20.0                                                     # two faces: too small
+    assert label.detect_prints(labels, speck, chain(80), 60.0, 6, 120.0)[0].sum() == 0
+
+
+def test_skin_and_footwear_are_never_prints():
+    labels = np.array(['skin'] * 40 + ['footwear.left'] * 40, dtype=object)
+    colours = np.full((80, 3), 220.0)
+    colours[10:20] = colours[50:60] = 20.0
+    assert label.detect_prints(labels, colours, chain(80), 60.0, 6, 120.0)[0].sum() == 0

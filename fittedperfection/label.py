@@ -310,7 +310,7 @@ def full_resolution_labels(garment, cage, labels, scores, tone, limit, outlier_f
     full = labels[nearest].copy()
     colours = face_colours(garment)
     if colours is None or tone is None or limit is None or not (labels == 'skin').any():
-        return full, 0
+        return full, 0, nearest
     base = np.char.partition(full.astype(str), '.')[:, 0]
     allowed = np.isin(base, RECOVERABLE)
     matches = np.linalg.norm(colours - np.asarray(tone, dtype=float), axis=1) <= limit
@@ -324,7 +324,48 @@ def full_resolution_labels(garment, cage, labels, scores, tone, limit, outlier_f
     change = candidate & connected_to(garment.triangles, meshes.weld(garment.positions), candidate | (full == 'skin'),
                                       full == 'skin')
     full[change] = 'skin'
-    return full, int(change.sum())
+    return full, int(change.sum()), nearest
+
+
+NOT_PRINTED = ('skin', 'hardware', 'none', 'footwear')            # footwear is a rigid copy already
+PRINT_TINT = (200, 255, 0)
+PRINT_FILL_RINGS = 3                                              # ...and is filled this many faces inward
+PRINT_RINGS = 2                                                   # a print piece needs a sharp edge within this many faces
+
+
+def detect_prints(labels, colours, graph, contrast, min_faces, edge_jump):
+    """Printed designs (logos, text, stripes, barcodes): faces whose texture colour stands out from their own
+    garment part's median colour by more than `contrast` and that lie within PRINT_RINGS faces of a sharp colour
+    edge (a jump of more than `edge_jump` between neighbouring faces; baked-in shading changes gradually), in
+    connected pieces of at least `min_faces`. The wrap keeps them stiff so they are not sheared."""
+    marked = np.zeros(len(labels), dtype=bool)
+    if colours is None:
+        return marked, 0
+    base = np.char.partition(labels.astype(str), '.')[:, 0]
+    for name in np.unique(labels[~np.isin(base, NOT_PRINTED)]):
+        group = labels == name
+        if group.sum() >= 50:
+            marked[group] = np.linalg.norm(colours[group] - np.median(colours[group], axis=0), axis=1) > contrast
+    a, b = graph.pairs[:, 0], graph.pairs[:, 1]
+    jump = np.linalg.norm(colours[a] - colours[b], axis=1)
+    near_edge = np.zeros(len(labels), dtype=bool)
+    near_edge[a[jump > edge_jump]] = near_edge[b[jump > edge_jump]] = True
+    neighbours = coo_matrix((np.ones(2 * len(a)), (np.r_[a, b], np.r_[b, a])), shape=(len(labels),) * 2).tocsr()
+    for _ in range(PRINT_RINGS):
+        near_edge |= (neighbours @ near_edge.astype(float)) > 0
+    if not marked.any():
+        return marked, 0
+    # faces near a sharp edge, grown a few faces further inside the contrasting area so a solid logo's middle is
+    # kept, but not across a whole shaded region
+    chosen = marked & near_edge
+    for _ in range(PRINT_FILL_RINGS):
+        chosen |= marked & ((neighbours @ chosen.astype(float)) > 0)
+    if not chosen.any():
+        return chosen, 0
+    piece, count = meshes.parts(graph, chosen)
+    sizes = np.bincount(piece[chosen], minlength=count)
+    good = sizes >= min_faces
+    return chosen & good[np.maximum(piece, 0)], int(good.sum())
 
 
 def covered_leg_skin(labels, centres, areas, crotch, height, needed, band=0.04):
@@ -393,11 +434,13 @@ def length_class(records, rasters):
 
 # -- review image ---------------------------------------------------------------------------------
 
-def review_image(labels, margin, view_images, views):
+def review_image(labels, margin, view_images, views, prints=None):
     names = ('front', 'left', 'back', 'right')
     colours = {name: COLOURS[name.split('.')[0]] for name in np.unique(labels)}
     side_tint = {name: (0.75 if name.endswith('.right') else 1.0) for name in colours}
     palette = np.array([[c * side_tint[n] for c in colours[n]] for n in labels], dtype=np.float64)
+    if prints is not None and prints.any():
+        palette[prints] = PRINT_TINT                                  # printed designs (kept stiff by the wrap)
     tile = 420
     sheet = Image.new('RGB', (tile * 4 + 190, tile * 2 + 60), (25, 28, 32))
     draw = ImageDraw.Draw(sheet)
@@ -418,6 +461,10 @@ def review_image(labels, margin, view_images, views):
         draw.rectangle((tile * 4 + 12, 30 + k * 24, tile * 4 + 30, 46 + k * 24), fill=tuple(int(c) for c in
                                                                                           palette[labels == name][0]))
         draw.text((tile * 4 + 38, 32 + k * 24), name, fill=(230, 230, 230))
+    if prints is not None and prints.any():
+        k = len(colours)
+        draw.rectangle((tile * 4 + 12, 30 + k * 24, tile * 4 + 30, 46 + k * 24), fill=PRINT_TINT)
+        draw.text((tile * 4 + 38, 32 + k * 24), 'print', fill=(230, 230, 230))
     return sheet
 
 
@@ -469,25 +516,31 @@ def run(ctx, out):
     changes['covered_leg_skin'] = covered_leg_skin(labels, centres, areas, crotch, height, config['leg_covered_share'])
     changes['coherent_limbs'] = coherent_limbs(labels, graph, areas, config['limb_island_fraction'])
     changes['sides'] = sides(labels, centres, graph, areas)
+    prints, print_pieces = detect_prints(labels, colours, graph, config['print_contrast'], config['print_min_faces'],
+                                         config['print_edge_jump'])
     length, length_scores = length_class(vision['records'], rasters)
 
     labels = labels.astype(str)
     garment = read_textured_mesh(ctx.output_of('intake')/'GARMENT.glb')
-    full_labels, changes['recover_skin_full_resolution'] = full_resolution_labels(
+    full_labels, changes['recover_skin_full_resolution'], nearest = full_resolution_labels(
         garment, mesh, labels, scores, skin_tone, skin_limit, config['recover_skin_outlier_factor'],
         config['recover_skin_full_score'])
-    np.savez_compressed(out/'fullres-labels.npz', labels=full_labels.astype(str))
-    np.savez_compressed(out/'labels.npz', labels=labels, smoothed=smoothed.astype(str), scores=scores.astype(np.float32),
+    full_prints = prints[nearest] & (full_labels != 'skin')
+    np.savez_compressed(out/'fullres-labels.npz', labels=full_labels.astype(str), prints=full_prints)
+    np.savez_compressed(out/'labels.npz', labels=labels, prints=prints, smoothed=smoothed.astype(str),
+                        scores=scores.astype(np.float32),
                         evidence=evidence.astype(np.float32), seen=seen.astype(np.float32), covered=covered.astype(np.float32), margin=margin.astype(np.float32))
     names, counts = np.unique(labels, return_counts=True)
     area_share = {name: round(float(areas[labels == name].sum() / areas.sum()), 4) for name in names}
-    review_image(labels, margin, view_images, {name: frame for name, frame in view_record['calibrated'].items()}
-                 ).save(out/'review.png')
+    review_image(labels, margin, view_images, {name: frame for name, frame in view_record['calibrated'].items()},
+                 prints).save(out/'review.png')
     summary = {'classes': list(CLASSES), 'faces': face_count, 'labels': {n: int(c) for n, c in zip(names, counts)},
                'area_share': area_share, 'rule_changes': changes,
                'crotch_height_m': None if crotch is None else round(crotch, 4),
                'legwear_length': length, 'length_scores': length_scores, 'skin_tone_rgb': skin_tone,
                'skin_colour_limit': skin_limit,
+               'prints': {'faces': int(prints.sum()), 'pieces': print_pieces,
+                          'full_resolution_faces': int(full_prints.sum())},
                'never_seen_faces': int((seen == 0).sum()), 'large_unlabelled_pieces': large_unlabelled,
                'close_calls': round(float((margin < 0.1).mean()), 4)}
     (out/'labels.json').write_text(json.dumps(summary, indent=1), encoding='utf-8', newline='\n')
