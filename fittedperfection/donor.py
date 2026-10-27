@@ -20,6 +20,7 @@ import numpy as np
 
 from . import body as bodies
 
+MIN_CUFF_FACES = 20              # a sleeve end counts as a cuff (the wrist) with at least this many cuff faces
 NECK_CLEARANCE_M = 0.03          # the head starts this far above the top of the neck cloth
 NECK_RADIUS_M = 0.12             # neck cloth: torso/collar this close to the centre line, above the shoulders
 ANKLE_ALONG_SOLE = 0.25          # the ankle stands over this share of the sole, from the heel
@@ -134,6 +135,33 @@ def build(binding, labels, garment_centres, garment_areas, config, body_id='body
     rest_bones = np.einsum('ij,bjk->bik', centre @ stand, per_bone)
     rest = bodies.skin(body, rest_bones)
 
+    # 3b. arm length: a cuff sits at the wrist, so where a sleeve has a labelled cuff the donor's arm (upper arm,
+    #     forearm, hand) stretches along itself about the shoulder joint until its wrist is as far from that joint
+    #     as the cuff's centre (clamped). Generator figures' arms vary a lot; without this the sleeve maps too far
+    #     down or up every body's arm. Applied to the rest shape like leg length, so un-pose and transfer carry the
+    #     sleeve elbow to elbow and wrist to wrist. Without a cuff the arm keeps its length (a plain sleeve end
+    #     cannot tell a long sleeve from a three-quarter one).
+    record['arm_scale'] = {}
+    for side, s in (('left', 'L'), ('right', 'R')):
+        cuff = labels == f'cuff.{side}'
+        if cuff.sum() < MIN_CUFF_FACES:
+            record['arm_scale'][side] = 'kept (no cuff)'
+            continue
+        shoulder_bone, wrist_bone = body.bone_names.index(f'upperarm01.{s}'), body.bone_names.index(f'wrist.{s}')
+        joint = apply(rest_bones[shoulder_bone], body.joint(f'upperarm01.{s}'))
+        wrist = apply(rest_bones[wrist_bone], body.joint(f'wrist.{s}'))
+        cuff_centre = np.average(garment_centres[cuff], axis=0, weights=garment_areas[cuff])
+        wanted_length = np.linalg.norm(cuff_centre - joint)
+        low, high = config['arm_length_range']
+        arm_scale = float(np.clip(wanted_length / np.linalg.norm(wrist - joint), low, high))
+        record['arm_scale'][side] = {'scale': round(arm_scale, 4), 'clamped': bool(
+            not np.isclose(arm_scale, wanted_length / np.linalg.norm(wrist - joint)))}
+        axis = (wrist - joint) / np.linalg.norm(wrist - joint)
+        stretch_arm = about(joint, np.eye(3) + (arm_scale - 1.0) * np.outer(axis, axis))
+        for bone in bodies._descendants(body.parents, shoulder_bone):
+            rest_bones[bone] = stretch_arm @ rest_bones[bone]
+    rest = bodies.skin(body, rest_bones)
+
     # 4. pose: arms about their shoulder joints to the cuff, legs about their hips towards the ankle, which sits
     #    over the rear quarter of the sole bind measured (heel to toe). The leg centreline's last point is at the
     #    front of the shoe, and a tall boot's shaft top is near the knee, so neither stands in for the ankle.
@@ -160,6 +188,43 @@ def build(binding, labels, garment_centres, garment_areas, config, body_id='body
         turn = rotation_between(joints[end] - pivot, np.asarray(target) - pivot)
         pose[body.bone_region == region] = about(pivot, turn)
         record['pose'][region] = round(float(np.degrees(np.arccos(np.clip((np.trace(turn) - 1) / 2, -1, 1)))), 2)
+
+    # 4b. elbows follow the sleeve, as legs go hip -> knee -> ankle: a relaxed arm bends at the elbow and sleeves
+    #     sag forward, so a rigidly turned arm leaves its elbow at the back edge of the sleeve. The upper arm turns
+    #     to the sleeve's centreline at the donor's upper-arm length, then the forearm turns from there to the
+    #     cuff (its centre where one is labelled, else the sleeve's end). A sleeve shorter than the upper arm
+    #     leaves the arm as it is.
+    record['elbow'] = {}
+    for side, s in (('left', 'L'), ('right', 'R')):
+        sleeve = binding['sleeves'].get(side)
+        if not sleeve or len(sleeve.get('points') or []) < 3:
+            continue
+        index = {n: body.bone_names.index(f'{n}.{s}') for n in ('upperarm01', 'lowerarm01', 'wrist')}
+        placed = lambda name: apply(pose[index[name]] @ rest_bones[index[name]], body.joint(f'{name}.{s}'))
+        joint, elbow = placed('upperarm01'), placed('lowerarm01')
+        points = np.array(sleeve['points'])
+        points = points[np.argsort((points - joint) @ (np.asarray(sleeve['cuff_end']) - joint))]
+        reach = np.linalg.norm(points - joint, axis=1)
+        upper_length = np.linalg.norm(elbow - joint)
+        beyond = np.flatnonzero(reach >= upper_length)
+        if not len(beyond) or beyond[0] == 0:
+            record['elbow'][side] = 'kept (sleeve shorter than the upper arm)'
+            continue
+        k = beyond[0]
+        t = (upper_length - reach[k - 1]) / max(reach[k] - reach[k - 1], 1e-9)
+        elbow_target = points[k - 1] + t * (points[k] - points[k - 1])
+        upper_turn = rotation_between(elbow - joint, elbow_target - joint)
+        arm = list(bodies._descendants(body.parents, index['upperarm01']))
+        pose[arm] = np.einsum('ij,bjk->bik', about(joint, upper_turn), pose[arm])
+        elbow, wrist = placed('lowerarm01'), placed('wrist')
+        cuff = labels == f'cuff.{side}'
+        wrist_target = np.average(garment_centres[cuff], axis=0, weights=garment_areas[cuff]) \
+            if cuff.sum() >= MIN_CUFF_FACES else np.asarray(sleeve['cuff_end'])
+        fore_turn = rotation_between(wrist - elbow, wrist_target - elbow)
+        forearm = list(bodies._descendants(body.parents, index['lowerarm01']))
+        pose[forearm] = np.einsum('ij,bjk->bik', about(elbow, fore_turn), pose[forearm])
+        angle = lambda r: round(float(np.degrees(np.arccos(np.clip((np.trace(r) - 1) / 2, -1, 1)))), 2)
+        record['elbow'][side] = {'upper_arm_turn_deg': angle(upper_turn), 'forearm_turn_deg': angle(fore_turn)}
     posed_bones = np.einsum('bij,bjk->bik', pose, rest_bones)
     posed = bodies.skin(body, posed_bones)
 
