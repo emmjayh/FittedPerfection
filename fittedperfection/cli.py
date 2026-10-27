@@ -1,4 +1,4 @@
-"""Command line: python -m fittedperfection run | status | outfits | freeze | view."""
+"""Command line: python -m fittedperfection run | status | outfits | freeze | view (app)."""
 import argparse
 import json
 import os
@@ -129,7 +129,8 @@ def build_parser():
     preview.add_argument('--pose', action='store_true', help='every body in the audit test pose (elbows 60, knees 30)')
     preview.set_defaults(handler=cmd_preview)
 
-    view = commands.add_parser('view', help='open the 3D review viewer on this computer')
+    view = commands.add_parser('view', aliases=['app'],
+                               help='open the viewer on this computer: review fits, and fit a new outfit')
     view.add_argument('--port', type=int, default=8765)
     view.set_defaults(handler=cmd_view)
     return parser

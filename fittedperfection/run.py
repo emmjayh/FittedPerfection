@@ -229,6 +229,8 @@ class Run:
             self.state['stages'][stage.name] = {
                 'status': 'stopped', 'started': started, 'why': why,
                 'seconds': round(time.perf_counter()-clock, 2), 'reason': f'{type(error).__name__}: {error}',
+                **({'needs_usd': round(float(error.estimate_usd), 4)}
+                   if getattr(error, 'estimate_usd', None) is not None else {}),
                 'partial': partial.relative_to(self.folder).as_posix()}
             self.state['status'] = 'stopped_at_'+stage.name
             self.save()
