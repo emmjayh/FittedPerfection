@@ -74,6 +74,15 @@ def cmd_bodies_make(args):
     return 0
 
 
+def cmd_preview(args):
+    from .preview import donor_preview
+    if args.donor:
+        folder, record = donor_preview(args.name)
+        print(f'[fp] donor: scale {record["scale"]}, legs {record["leg_scale"]}, pose {record["pose"]}')
+        print(f'[fp] renders in {folder}')
+    return 0
+
+
 def cmd_view(args):
     from .viewer import serve
     serve(args.port)
@@ -109,6 +118,11 @@ def build_parser():
     make.add_argument('--replace-draft', action='store_true',
                       help='set an unreviewed draft aside first (reviewed bodies are never replaced)')
     make.set_defaults(handler=cmd_bodies_make)
+
+    preview = commands.add_parser('preview', help='review renders for fit work (Blender, writes runs/_review/)')
+    preview.add_argument('name')
+    preview.add_argument('--donor', action='store_true', help='the donor inside the outfit')
+    preview.set_defaults(handler=cmd_preview)
 
     view = commands.add_parser('view', help='open the 3D review viewer on this computer')
     view.add_argument('--port', type=int, default=8765)

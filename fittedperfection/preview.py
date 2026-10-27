@@ -1,0 +1,46 @@
+"""Review renders for fit work (Blender, outside the seal). Not a pipeline stage: it writes to runs/_review/.
+
+    python -m fittedperfection preview NAME --donor     the donor (Step A) inside the outfit's cage
+"""
+import json
+import subprocess
+
+import numpy as np
+
+from . import config, donor, meshes, seal, settings
+from .glbwrite import write_mesh
+from .gltf import read_textured_mesh
+
+SCRIPT = config.PACKAGE/'blender'/'preview.py'
+
+
+def donor_inputs(run_folder):
+    binding = json.loads((run_folder/'bind'/'binding.json').read_text(encoding='utf-8'))
+    labels = np.load(run_folder/'labels'/'labels.npz')['labels'].astype(str)
+    cage = read_textured_mesh(run_folder/'full'/'CAGE.glb')
+    centres = cage.positions[cage.triangles].mean(axis=1)
+    _, areas = meshes.face_normals(cage.positions, cage.triangles)
+    return binding, labels, centres, areas
+
+
+def render(items, out, name):
+    command = [str(config.blender()), '--background', '--factory-startup', '--python-exit-code', '1', '--python',
+               str(SCRIPT), '--', '--out', str(out), '--name', name]
+    for item in items:
+        command += ['--item', item]
+    log = out/f'{name}.log'
+    with open(log, 'w', encoding='utf-8') as stream:
+        if subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT).returncode:
+            raise RuntimeError(f'preview render failed; see {log}')
+
+
+def donor_preview(name):
+    run_folder = config.runs_folder()/name
+    out = config.runs_folder()/'_review'/f'donor-{name}'
+    out.mkdir(parents=True, exist_ok=True)
+    with seal.sealed():                              # built exactly as the sealed fit will build it
+        built = donor.build(*donor_inputs(run_folder), settings.section('fit'))
+    write_mesh(out/'donor.glb', built['posed'], built['body'].triangles, colour=(0.82, 0.63, 0.51, 1.0), name='donor')
+    (out/'donor.json').write_text(json.dumps(built['record'], indent=1), encoding='utf-8')
+    render([f'{run_folder/"full"/"CAGE.glb"}|texture', f'{out/"donor.glb"}|skin'], out, name)
+    return out, built['record']
