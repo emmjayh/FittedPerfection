@@ -7,6 +7,7 @@ from the same numbers:
    then a move onto the garment's shoulder centre;
 2. leg length: the legs scale vertically about the crotch so crotch-to-floor matches
    (clamped), and the figure stands on the floor; hems are never used;
+   then the neck lengthens (clamped) so the head starts at the top of the neck cloth;
 3. the trunk is centred horizontally inside the torso and trouser cloth;
 4. pose: each arm turns about its own shoulder joint to point at the cuff, each leg
    about its hip to point at the ankle (straight, as no knee is used);
@@ -19,6 +20,9 @@ import numpy as np
 
 from . import body as bodies
 
+NECK_CLEARANCE_M = 0.03          # the head starts this far above the top of the neck cloth
+NECK_RADIUS_M = 0.12             # neck cloth: torso/collar this close to the centre line, above the shoulders
+ANKLE_ALONG_SOLE = 0.25          # the ankle stands over this share of the sole, from the heel
 GARMENT_PARTS = {
     'trunk': ('torso', 'pants', 'waistband'),
     'arm.left': ('sleeve.left', 'cuff.left'), 'arm.right': ('sleeve.right', 'cuff.right'),
@@ -96,6 +100,26 @@ def build(binding, labels, garment_centres, garment_areas, config, body_id='body
     rest0 = bodies.skin(body, per_bone)
     stand = translation([0, 0, -rest0[:, 2].min()])
 
+    # 2b. neck length: generator figures often have longer necks, so a neckline that reaches up the garment's neck
+    #     would land on the donor's chin and face. The neck lengthens (never shortens, clamped) so the head starts
+    #     just above the top of the garment's neck cloth (torso and collar near the centre line; hoods excluded).
+    record['neck_scale'] = 1.0
+    neck_cloth = np.isin(labels, ('torso', 'collar')) & (garment_centres[:, 2] > garment_shoulder[2]) &         (np.linalg.norm(garment_centres[:, :2] - garment_shoulder[:2], axis=1) < NECK_RADIUS_M)
+    if neck_cloth.sum() >= 20:
+        neck_top = float(np.percentile(garment_centres[neck_cloth, 2], 98))
+        base = apply(stand @ shape, body.joint('neck01'))
+        head = apply(stand @ shape, body.joint('head'))
+        low, high = config['neck_length_range']
+        neck_scale = float(np.clip((neck_top + NECK_CLEARANCE_M - base[2]) / (head[2] - base[2]), low, high))
+        record.update(neck_scale=round(neck_scale, 4), neck_top_m=round(neck_top, 4))
+        neck = bodies._descendants(body.parents, body.bone_names.index('neck01'))
+        above = bodies._descendants(body.parents, body.bone_names.index('head'))
+        stretch_neck = np.linalg.inv(stand) @ about(base, np.diag([1.0, 1.0, neck_scale])) @ stand
+        lift = translation([0, 0, (neck_scale - 1.0) * (head[2] - base[2])])
+        for bone in neck:
+            per_bone[bone] = (lift if bone in above else stretch_neck) @ per_bone[bone]
+        rest0 = bodies.skin(body, per_bone)
+
     # 3. centre the trunk horizontally inside the torso/trouser cloth
     trunk_cloth = np.isin(labels, ('torso', 'pants', 'waistband')) & \
         (garment_centres[:, 2] > wanted + 0.1) & (garment_centres[:, 2] < garment_shoulder[2] - 0.1)
@@ -110,7 +134,16 @@ def build(binding, labels, garment_centres, garment_areas, config, body_id='body
     rest_bones = np.einsum('ij,bjk->bik', centre @ stand, per_bone)
     rest = bodies.skin(body, rest_bones)
 
-    # 4. pose: arms about their shoulder joints to the cuff, legs about their hips to the ankle
+    # 4. pose: arms about their shoulder joints to the cuff, legs about their hips towards the ankle, which sits
+    #    over the rear quarter of the sole bind measured (heel to toe). The leg centreline's last point is at the
+    #    front of the shoe, and a tall boot's shaft top is near the knee, so neither stands in for the ankle.
+    def ankle(side):
+        foot = (binding.get('feet') or {}).get(side)
+        if foot and foot.get('heel') is not None and foot.get('toe') is not None:
+            heel, toe = np.asarray(foot['heel']), np.asarray(foot['toe'])
+            return heel + ANKLE_ALONG_SOLE * (toe - heel)
+        return binding['legs'][side]['ankle_end']
+
     pose = np.repeat(np.eye(4)[None], bones, axis=0)
     record['pose'] = {}
     joints = {name: apply(rest_bones[body.bone_names.index(name)], body.joint(name)) for name in
@@ -118,8 +151,8 @@ def build(binding, labels, garment_centres, garment_areas, config, body_id='body
     for region, side, start, end, target in (
             ('arm.left', 'left', 'upperarm01.L', 'wrist.L', (binding['sleeves'].get('left') or {}).get('cuff_end')),
             ('arm.right', 'right', 'upperarm01.R', 'wrist.R', (binding['sleeves'].get('right') or {}).get('cuff_end')),
-            ('leg.left', 'left', 'upperleg01.L', 'foot.L', binding['legs']['left']['ankle_end']),
-            ('leg.right', 'right', 'upperleg01.R', 'foot.R', binding['legs']['right']['ankle_end'])):
+            ('leg.left', 'left', 'upperleg01.L', 'foot.L', ankle('left')),
+            ('leg.right', 'right', 'upperleg01.R', 'foot.R', ankle('right'))):
         if target is None:
             record['pose'][region] = 'kept (no sleeve to follow)'
             continue
