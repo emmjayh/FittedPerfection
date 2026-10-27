@@ -15,7 +15,9 @@
    hangs), host (attachments take the label of what they are sewn onto), skin check
    (skin only where SAM and the texture colour agree), host for unidentified pieces
    (trims and lace with no vocabulary word, and skin rejected by colour with no garment
-   evidence, take the label they are sewn onto), covered leg skin, coherent
+   evidence, take the label they are sewn onto), skin recovery (garment-labelled faces
+   in the skin tone that SAM saw as skin, or that are off-colour for their own label,
+   and join skin, become skin), covered leg skin, coherent
    limbs, and finally sides (+X is the garment's own left).
 """
 import io
@@ -24,7 +26,9 @@ import json
 import numpy as np
 from PIL import Image, ImageDraw
 from scipy.sparse import coo_matrix, diags
+from scipy.sparse.csgraph import connected_components
 from scipy.sparse.linalg import splu
+from scipy.spatial import cKDTree
 
 from . import faceid, meshes, settings, vocabulary
 from .gltf import read_textured_mesh
@@ -250,6 +254,79 @@ def skin_check(labels, scores, colours, centres, height, min_distance, spread_fa
     return int(differs.sum()), [round(float(c)) for c in tone], round(float(limit), 1)
 
 
+RECOVERABLE = ('torso', 'collar', 'attachment', 'sleeve', 'cuff', 'hood', 'waistband', 'hanging', 'none')
+
+
+def recover_skin(labels, scores, colours, graph, tone, limit, min_score, outlier_factor):
+    """The reverse of the skin check: garment-labelled faces that are bare mannequin skin become skin.
+
+    A face qualifies when its colour matches the skin tone (within the skin check's limit) and either SAM saw
+    skin there (cut-outs, a sliver on a sleeveless top) or it is clearly off-colour for its own label (a grey
+    patch on a dark collar, where a mask bled past a strap), and it joins skin already found. Legwear and
+    footwear never qualify: pale stockings and boots match a pale mannequin."""
+    if tone is None or limit is None or colours is None:
+        return 0
+    base = np.char.partition(labels.astype(str), '.')[:, 0]
+    allowed = np.isin(base, RECOVERABLE)
+    matches = np.linalg.norm(colours - np.asarray(tone, dtype=float), axis=1) <= limit
+    outlier = np.zeros(len(labels), dtype=bool)
+    for name in np.unique(labels[allowed]):
+        group = labels == name
+        if group.sum() >= 20:
+            outlier[group] = np.linalg.norm(colours[group] - np.median(colours[group], axis=0), axis=1) > \
+                outlier_factor * limit
+    candidate = allowed & matches & ((scores[:, SKIN] >= min_score) | outlier)
+    piece, _ = meshes.parts(graph, candidate | (labels == 'skin'))
+    change = candidate & np.isin(piece, np.unique(piece[labels == 'skin']))
+    labels[change] = 'skin'
+    return int(change.sum())
+
+
+def connected_to(triangles, welded, member, seeds):
+    """Faces in `member` joined to a face in `seeds` through shared (welded) vertices, staying within `member`."""
+    faces = np.flatnonzero(member)
+    out = np.zeros(len(member), dtype=bool)
+    if not len(faces) or not seeds[faces].any():
+        return out
+    rows = np.repeat(np.arange(len(faces)), 3)
+    cols = welded[triangles[faces]].ravel() + len(faces)
+    size = len(faces) + int(welded.max()) + 1
+    _, component = connected_components(coo_matrix((np.ones(len(rows)), (rows, cols)), shape=(size, size)),
+                                        directed=False)
+    component = component[:len(faces)]
+    out[faces[np.isin(component, np.unique(component[seeds[faces]]))]] = True
+    return out
+
+
+def full_resolution_labels(garment, cage, labels, scores, tone, limit, outlier_factor, min_score):
+    """A label for every full-resolution face: its nearest cage face's, then skin recovery at full resolution.
+
+    The cage averages colours over large faces (a strap edge and the bare back beside it make one purple face),
+    so bare mannequin patches can hide inside a garment label there. At full resolution a face in the skin tone
+    that is off-colour for its label or that SAM saw some skin at (on its cage face), and that joins skin
+    through the mesh, is skin."""
+    centres = garment.positions[garment.triangles].mean(axis=1)
+    nearest = cKDTree(cage.positions[cage.triangles].mean(axis=1)).query(centres)[1]
+    full = labels[nearest].copy()
+    colours = face_colours(garment)
+    if colours is None or tone is None or limit is None or not (labels == 'skin').any():
+        return full, 0
+    base = np.char.partition(full.astype(str), '.')[:, 0]
+    allowed = np.isin(base, RECOVERABLE)
+    matches = np.linalg.norm(colours - np.asarray(tone, dtype=float), axis=1) <= limit
+    outlier = np.zeros(len(full), dtype=bool)
+    for name in np.unique(full[allowed]):
+        group = full == name
+        if group.sum() >= 50:
+            outlier[group] = np.linalg.norm(colours[group] - np.median(colours[group], axis=0), axis=1) > \
+                outlier_factor * limit
+    candidate = allowed & matches & (outlier | (scores[nearest, SKIN] >= min_score))
+    change = candidate & connected_to(garment.triangles, meshes.weld(garment.positions), candidate | (full == 'skin'),
+                                      full == 'skin')
+    full[change] = 'skin'
+    return full, int(change.sum())
+
+
 def covered_leg_skin(labels, centres, areas, crotch, height, needed, band=0.04):
     top = crotch if crotch is not None else 0.45 * height
     changed = 0
@@ -385,12 +462,21 @@ def run(ctx, out):
         config['skin_colour_spread_factor'], config['confident_skin_score'])
     changes['host_unlabelled'], large_unlabelled = host_unlabelled(labels, graph, areas,
                                                                    config['largest_unlabelled_share'])
+    # after the hosts: unidentified pieces have taken their neighbour's label, so a bare patch given to a collar
+    # is judged as part of that collar
+    changes['recover_skin'] = recover_skin(labels, scores, colours, graph, skin_tone, skin_limit,
+                                           config['recover_skin_score'], config['recover_skin_outlier_factor'])
     changes['covered_leg_skin'] = covered_leg_skin(labels, centres, areas, crotch, height, config['leg_covered_share'])
     changes['coherent_limbs'] = coherent_limbs(labels, graph, areas, config['limb_island_fraction'])
     changes['sides'] = sides(labels, centres, graph, areas)
     length, length_scores = length_class(vision['records'], rasters)
 
     labels = labels.astype(str)
+    garment = read_textured_mesh(ctx.output_of('intake')/'GARMENT.glb')
+    full_labels, changes['recover_skin_full_resolution'] = full_resolution_labels(
+        garment, mesh, labels, scores, skin_tone, skin_limit, config['recover_skin_outlier_factor'],
+        config['recover_skin_full_score'])
+    np.savez_compressed(out/'fullres-labels.npz', labels=full_labels.astype(str))
     np.savez_compressed(out/'labels.npz', labels=labels, smoothed=smoothed.astype(str), scores=scores.astype(np.float32),
                         evidence=evidence.astype(np.float32), seen=seen.astype(np.float32), covered=covered.astype(np.float32), margin=margin.astype(np.float32))
     names, counts = np.unique(labels, return_counts=True)

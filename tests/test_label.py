@@ -64,3 +64,40 @@ def test_a_piece_spanning_both_sides_is_split_at_the_middle():
     centres = np.array([[0.2, 0, 0], [0.1, 0, 0], [-0.1, 0, 0], [-0.2, 0, 0]])
     label.sides(labels, centres, graph, np.ones(4))
     assert labels.tolist() == ['footwear.left', 'footwear.left', 'footwear.right', 'footwear.right']
+
+
+SKIN_CLASS = label.CLASSES.index('skin')
+
+
+def test_skin_recovery_takes_back_bare_patches_but_never_legwear_or_lone_pieces():
+    # faces in a chain: skin | collar patch in the skin tone (off-colour for the collar) | dark collar x20 |
+    # stocking in the skin tone | lone skin-tone collar face not joined to skin
+    labels = np.array(['skin', 'collar'] + ['collar'] * 20 + ['pant_leg.left', 'collar'], dtype=object)
+    colours = np.array([[200, 180, 180], [198, 182, 181]] + [[30, 30, 120]] * 20 + [[200, 181, 180], [200, 180, 182]],
+                       dtype=float)
+    scores = np.zeros((len(labels), len(label.CLASSES)))
+    graph = chain(len(labels))
+    pairs = graph.pairs[graph.pairs[:, 1] != len(labels) - 1]               # the last face touches nothing
+    graph = FaceGraph(pairs=pairs, seam=np.zeros(len(pairs), bool), angle_deg=np.zeros(len(pairs)),
+                      face_count=len(labels))
+    changed = label.recover_skin(labels, scores, colours, graph, [200, 180, 180], 25.0, 0.35, 2.0)
+    assert changed == 1 and labels[1] == 'skin' and labels[22] == 'pant_leg.left' and labels[23] == 'collar'
+
+
+def test_skin_recovery_follows_sam_evidence_for_a_sliver_in_a_pale_garment():
+    labels = np.array(['skin', 'sleeve.left', 'sleeve.left'] + ['torso'] * 20, dtype=object)
+    colours = np.full((len(labels), 3), 218.0)                                # pale top on a pale mannequin
+    scores = np.zeros((len(labels), len(label.CLASSES)))
+    scores[1:3, SKIN_CLASS] = 0.5                                             # SAM saw skin on the sliver only
+    changed = label.recover_skin(labels, scores, colours, chain(len(labels)), [218, 218, 218], 25.0, 0.35, 2.0)
+    assert changed == 2 and (labels[3:] == 'torso').all()
+
+
+def test_connected_to_follows_shared_vertices_within_the_member_faces():
+    triangles = np.array([[0, 1, 2], [1, 2, 3], [3, 4, 5], [6, 7, 8]])
+    welded = np.arange(9)
+    member = np.array([True, True, True, True])
+    seeds = np.array([True, False, False, False])
+    assert label.connected_to(triangles, welded, member, seeds).tolist() == [True, True, True, False]
+    member[1] = False                                                         # the bridge is not a member
+    assert label.connected_to(triangles, welded, member, seeds).tolist() == [True, False, False, False]

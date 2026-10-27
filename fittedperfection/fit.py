@@ -308,7 +308,7 @@ def run(ctx, out):
         tall = unique_points[group['vertices'], 2].max() - line >= config_fit['shoe_shaft_min_m']
         shaft = shoes.shaft(group['vertices'], unique_points, line) if tall else np.zeros(0, dtype=np.int64)
         shoe_parts[side] = {'vertices': group['vertices'], 'thickness': thickness, 'edge_found': found,
-                            'shaft': shaft, 'donor_foot': donor_foot,
+                            'shaft': shaft, 'line': line, 'donor_foot': donor_foot,
                             'faces': unique_triangles[labels == f'footwear.{side}']}
     # a pair stands on one sole: the thicker measured edge (or the default when neither was found)
     measured = [p['thickness'] for p in shoe_parts.values() if p['edge_found']]
@@ -324,8 +324,7 @@ def run(ctx, out):
     garment = read_textured_mesh(ctx.output_of('intake')/'GARMENT.glb')
     full_welded = meshes.weld(garment.positions)
     full_points = garment.positions[np.unique(full_welded, return_index=True)[1]]
-    full_face_labels = fullres.transfer_labels(garment.positions, garment.triangles, cage.positions, cage.triangles,
-                                               labels)
+    full_face_labels = np.load(ctx.output_of('label')/'fullres-labels.npz')['labels'].astype(str)  # label stage
     full_binding = fullres.bind(full_points, fullres.vertex_labels(full_face_labels, garment.triangles, full_welded),
                                 unique_points, unique_triangles, labels)
     full_regions = regions[unique_triangles[full_binding['face'], 0]]
@@ -340,6 +339,7 @@ def run(ctx, out):
         target_rest = target_body.positions
         fitted = transfer(rest_points, regions, built['rest'], target_rest, body, donor_crotch, config_fit,
                           adjacency, band)
+        field_placed = fitted.copy()                                  # Step C before rigid copies (boot shafts)
         fitted, rigid_transfer = place_rigid(rest_points, fitted, groups, config_fit['rigid_max_rotation_degrees'])
         shoe_record = {}
         for side, part in shoe_parts.items():                         # Step E: each shoe onto this body's foot
@@ -347,7 +347,14 @@ def run(ctx, out):
                                                       shoes.foot_points(target_body, target_rest, side),
                                                       part['thickness'],
                                                       config_fit['foot_length_of_height'] * binding['height_m'])
+            # A boot shaft is cloth on the leg: just above the ankle it follows the shoe, higher up it eases into
+            # the leg's own placement (Step C), so a knee-high boot stays knee-high instead of shrinking with the
+            # foot and uncovering what its rim hid.
+            shaft = part['shaft']
+            ease_in = np.clip((unique_points[shaft, 2] - part['line']) / config_fit['shoe_shaft_blend_m'], 0.0, 1.0)
+            ease_in = ease_in * ease_in * (3 - 2 * ease_in)
             fitted[part['vertices']] = move(unique_points[part['vertices']])
+            fitted[shaft] = (1 - ease_in)[:, None] * fitted[shaft] + ease_in[:, None] * field_placed[shaft]
             shoe_record[side].update(edge_found=part['edge_found'], shaft_points=int(len(part['shaft'])))
         skin = wrap.Skin(target_rest, target_body.triangles, bare_skin(target_body))
         before = {'offsets': wrap.offsets(fitted, skin, cloth),
