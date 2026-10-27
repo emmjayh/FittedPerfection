@@ -20,7 +20,7 @@ from PIL import Image
 from meta_sam_parser import CompletedOutcome, decode_mask_to_raster, image_segmentation_format, video_segmentation_format
 
 from . import config, models, secrets, settings, vocabulary
-from .samapi import SamClient
+from .samapi import SamClient, SpendRefused
 
 CODE = ('vision.py', 'samapi.py', 'vocabulary.py')
 PRICE_PER_IMAGE = 2.50 / 1000
@@ -81,7 +81,8 @@ def run(ctx, out):
     record = json.loads((views/'views.json').read_text(encoding='utf-8'))
     orbit_frames = record['orbit_frames']
     pin = models.pin('sam')
-    sam = SamClient(config.runs_folder()/'_cache'/'sam', pin['model'], models.API_BASE, api_key=secrets.api_key())
+    sam = SamClient(config.runs_folder()/'_cache'/'sam', pin['model'], models.API_BASE, api_key=secrets.api_key(),
+                    budget_usd=config.spend_allowance_usd())
     options = {'mask_encoding': vision_settings['mask_encoding'],
                'include_confidence': 'true' if vision_settings['include_confidence'] else 'false'}
 
@@ -90,16 +91,21 @@ def run(ctx, out):
         jobs.append((phrase, 'video', views/record['video'], None))
         for still in record['stills']:
             jobs.append((phrase, 'image', views/'color'/f'{still}.png', still))
-    if any(kind == 'video' for _, kind, _, _ in jobs):
-        sam.upload(views/record['video'])                   # once, before the parallel requests
-
     content = {views/record['video']: video_content_sha(views, orbit_frames, record['fps'])}
     content.update({views/'color'/f'{still}.png': image_content_sha(views/'color'/f'{still}.png')
                     for still in record['stills']})
+    estimate = {'video': max(orbit_frames, MIN_BILLED_VIDEO_FRAMES) * PRICE_PER_VIDEO_FRAME, 'image': PRICE_PER_IMAGE}
+    uncached = [job for job in jobs if not sam.is_cached(job[0], job[1], options, content[job[2]])]
+    total = sum(estimate[kind] for _, kind, _, _ in uncached)
+    if total > sam.budget_usd + 1e-9:                       # all or nothing: never stop halfway through paying
+        raise SpendRefused(f'vision needs {len(uncached)} new SAM requests, about ${total:.2f}; allowed '
+                           f'${sam.budget_usd:.2f}. Nothing was sent. Rerun with --allow-spend {total:.2f} to go ahead.')
+    if any(kind == 'video' for _, kind, _, _ in uncached):
+        sam.upload(views/record['video'])                   # once, before the parallel requests
 
     def request(job):
         phrase, kind, media, still = job
-        text, info = sam.segment(phrase, media, kind, options, content_sha=content[media])
+        text, info = sam.segment(phrase, media, kind, options, content_sha=content[media], estimate_usd=estimate[kind])
         return job, text, info
 
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:

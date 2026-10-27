@@ -35,6 +35,8 @@ class WonderClient(SamClient):
         if cached.is_file():
             record = json.loads(cached.read_text(encoding='utf-8'))
             return record['text'], {**record['summary'], 'cached': True, 'key': key}
+        # Worst case: about 1,600 input tokens per image at $4/M plus every output token at $20/M.
+        self.charge(len(images) * 1600 * 4e-6 + max_output_tokens * 20e-6, 'Muse Wonder review')
         content = [{'type': 'input_text', 'text': prompt}]
         for path in images:
             encoded = base64.b64encode(path.read_bytes()).decode('ascii')

@@ -12,6 +12,7 @@ import base64
 import datetime
 import hashlib
 import json
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -25,6 +26,10 @@ RETRY_STATUS = {408, 409, 429, 500, 502, 503, 504}
 
 class SamApiError(RuntimeError):
     pass
+
+
+class SpendRefused(SamApiError):
+    """A paid call would go over what the owner allowed (default: nothing)."""
 
 
 def _now():
@@ -43,13 +48,23 @@ def urllib_transport(method, url, headers, body, timeout):
 
 class SamClient:
     def __init__(self, cache_folder, model, base_url, api_key=None, transport=urllib_transport,
-                 timeout=900, retries=4, pause=2.0):
+                 timeout=900, retries=4, pause=2.0, budget_usd=0.0):
         self.cache = Path(cache_folder)
         (self.cache/'responses').mkdir(parents=True, exist_ok=True)
         self.model, self.base_url = model, base_url.rstrip('/')
         self.api_key, self.transport = api_key, transport
         self.timeout, self.retries, self.pause = timeout, retries, pause
         self.network_calls = 0
+        self.budget_usd, self.spent_usd = budget_usd, 0.0
+        self._lock = threading.Lock()
+
+    def charge(self, estimate_usd, what):
+        """Reserve an estimated cost before a paid call, or refuse if it would exceed the allowance."""
+        with self._lock:
+            if self.spent_usd + estimate_usd > self.budget_usd + 1e-9:
+                raise SpendRefused(f'{what} would cost about ${estimate_usd:.4f}; allowed ${self.budget_usd:.2f},'
+                                   f' already ${self.spent_usd:.4f}. Nothing was sent.')
+            self.spent_usd += estimate_usd
 
     # -- HTTP -------------------------------------------------------------------
 
@@ -89,7 +104,12 @@ class SamClient:
 
     # -- segmentation -------------------------------------------------------------
 
-    def segment(self, phrase, media_path, kind, options, content_sha=None):
+    def is_cached(self, phrase, kind, options, media_sha):
+        definition = {'model': self.model, 'kind': kind, 'phrase': phrase, 'media_sha256': media_sha,
+                      'options': dict(options)}
+        return (self.cache/'responses'/f'{json_sha256(definition)}.json').is_file()
+
+    def segment(self, phrase, media_path, kind, options, content_sha=None, estimate_usd=None):
         """Segmentation text for one phrase on one image or video, plus the cache record.
 
         content_sha identifies what the media shows (e.g. a hash of its decoded pixels). When given, it
@@ -108,6 +128,8 @@ class SamClient:
             record = json.loads(cached.read_text(encoding='utf-8'))
             return record['text'], {**record['summary'], 'cached': True, 'key': key}
 
+        self.charge(estimate_usd if estimate_usd is not None else (0.01 if kind == 'video' else 0.0025),
+                    f'SAM {kind} request "{phrase}"')
         if kind == 'video':
             file_id, _ = self.upload(media_path)
             media = {'type': 'input_video', 'file_id': file_id}

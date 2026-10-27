@@ -4,7 +4,7 @@ import json
 import pytest
 
 from fittedperfection import seal
-from fittedperfection.samapi import SamApiError, SamClient
+from fittedperfection.samapi import SamApiError, SamClient, SpendRefused
 
 
 class FakeApi:
@@ -32,7 +32,8 @@ def media(tmp_path):
 
 
 def client(tmp_path, api):
-    return SamClient(tmp_path/'cache', 'sam-3.1', 'https://api.example/v1', api_key='k', transport=api, pause=0)
+    return SamClient(tmp_path/'cache', 'sam-3.1', 'https://api.example/v1', api_key='k', transport=api, pause=0,
+                     budget_usd=1.0)
 
 
 def test_image_request_shape_and_text(media, tmp_path):
@@ -80,6 +81,25 @@ def test_busy_server_is_retried_then_errors(media, tmp_path):
 
 
 def test_missing_key_is_refused(media, tmp_path):
-    sam = SamClient(tmp_path/'cache', 'sam-3.1', 'https://api.example/v1', api_key=None, transport=FakeApi())
+    sam = SamClient(tmp_path/'cache', 'sam-3.1', 'https://api.example/v1', api_key=None, transport=FakeApi(),
+                    budget_usd=1.0)
     with pytest.raises(SamApiError, match='MODEL_API_KEY'):
         sam.segment('boot', media/'frame.png', 'image', {})
+
+
+def test_without_an_allowance_nothing_paid_is_sent(media, tmp_path):
+    api = FakeApi()
+    sam = SamClient(tmp_path/'cache', 'sam-3.1', 'https://api.example/v1', api_key='k', transport=api)
+    with pytest.raises(SpendRefused, match='Nothing was sent'):
+        sam.segment('boot', media/'frame.png', 'image', {})
+    assert api.calls == []
+
+
+def test_the_allowance_runs_out_exactly(media, tmp_path):
+    api = FakeApi()
+    sam = SamClient(tmp_path/'cache', 'sam-3.1', 'https://api.example/v1', api_key='k', transport=api, budget_usd=0.005)
+    sam.segment('boot', media/'frame.png', 'image', {}, estimate_usd=0.0025)
+    sam.segment('shoe', media/'frame.png', 'image', {}, estimate_usd=0.0025)
+    with pytest.raises(SpendRefused):
+        sam.segment('sneaker', media/'frame.png', 'image', {}, estimate_usd=0.0025)
+    assert len(api.calls) == 2

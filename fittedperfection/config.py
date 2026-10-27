@@ -82,3 +82,12 @@ def outfits():
         return {}
     listed = json.loads(path.read_text(encoding='utf-8'))['outfits']
     return {name: {**entry, 'path': root()/entry['file']} for name, entry in listed.items()}
+
+
+def spend_allowance_usd():
+    """How much this command may spend on paid API calls (FP_ALLOW_SPEND_USD, set by --allow-spend). It is 0 by
+    default, so only cached answers are used unless the owner explicitly allows spending."""
+    try:
+        return max(0.0, float(os.environ.get('FP_ALLOW_SPEND_USD', '0') or 0))
+    except ValueError:
+        return 0.0

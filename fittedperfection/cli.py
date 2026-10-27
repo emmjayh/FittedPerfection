@@ -1,6 +1,7 @@
 """Command line: python -m fittedperfection run | status | outfits | freeze | view."""
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -28,6 +29,7 @@ def _resolve_outfit(args):
 def cmd_run(args):
     from .run import Run
     from .stages import PIPELINE
+    os.environ['FP_ALLOW_SPEND_USD'] = str(args.allow_spend)
     archive, default_name = _resolve_outfit(args)
     name = args.name or default_name
     folder = config.runs_folder()/name
@@ -90,6 +92,8 @@ def build_parser():
     run.add_argument('--rerun-from', choices=NAMES, help='set this stage and later ones aside, then rerun them')
     run.add_argument('--stop-after', choices=NAMES, help='stop after this stage')
     run.add_argument('--test-fit', action='store_true', help='allow a held-out test-fits outfit')
+    run.add_argument('--allow-spend', type=float, default=0.0, metavar='USD',
+                     help='allow up to this much on paid API calls (default 0: cached answers only)')
     run.set_defaults(handler=cmd_run)
 
     status = commands.add_parser('status', help='show one run')
