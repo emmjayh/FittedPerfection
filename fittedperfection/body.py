@@ -104,9 +104,16 @@ def landmarks(body, positions=None):
     arms = {side: bind.sleeve_chain(side, labels, centres, areas, graph, torso_area, config_bind)
             for side in ('left', 'right')}
     shoulders = bind.shoulders(arms, labels, centres, areas, height)
+    # The sleeveless measure too, for garments bind measured that way: the top of the trunk over each
+    # shoulder. The neck and head are not cloth-bearing torso there, so they are left out.
+    neck = _descendants(body.parents, body.bone_names.index('neck01'))
+    head_weight = (body.weights * np.isin(body.joints, list(neck))).sum(axis=1)
+    no_head = labels.copy()
+    no_head[head_weight[body.triangles].mean(axis=1) >= 0.5] = 'none'
+    shoulder_top = bind.shoulders({}, no_head, centres, areas, height)
     crotch = label.crotch_height(centres, areas, graph, height)
     if crotch is None:
         raise ValueError(f'{body.id}: could not find where the legs branch')
     legs = {side: bind.leg_chain(side, labels, centres, areas, crotch, config_bind) for side in ('left', 'right')}
-    return {'arms': arms, 'shoulders': shoulders, 'crotch_height_m': crotch, 'legs': legs,
+    return {'arms': arms, 'shoulders': shoulders, 'shoulder_top': shoulder_top, 'crotch_height_m': crotch, 'legs': legs,
             'height_m': height, 'floor_m': float(positions[:, 2].min())}

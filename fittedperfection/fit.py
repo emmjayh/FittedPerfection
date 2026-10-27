@@ -1,0 +1,271 @@
+"""Stage 6, fit (spec §5.6), Steps A-C so far. Sealed: numpy/scipy only, no network, no other programs.
+
+A. donor: body_01_medium reshaped and posed inside the outfit (fittedperfection/donor.py).
+B. un-pose: every cage point moves into the donor's rest pose by a soft blend of the
+   inverse pose of its nearest same-region donor vertices. Near label seams the blended
+   transforms are interpolated harmonically, so the field changes smoothly from one
+   region to the next. Rigid groups (hardware, whole shoes) move with one transform each.
+C. transfer: donor and targets share one mesh, so each body vertex has an exact move
+   (target - donor). Each cage point moves by the Gaussian-weighted average move of its
+   k nearest same-region donor vertices, sigma = max(2 d1, 0.03 height). No per-anchor
+   rotations. Rigid groups are placed as exact copies (rigid fit to the field, rotation
+   clamped). UV-split twins share one result, so seams cannot open.
+
+No clearance solve yet (Step D comes next), so cloth may still cut into a body. Every
+output is a preview draft: fit_reviewed and game_ready are false.
+"""
+import json
+
+import numpy as np
+from scipy.spatial import cKDTree
+
+from . import body as bodies, config, donor, meshes, settings
+from .glbwrite import write_mesh
+from .gltf import read_textured_mesh
+
+CODE = ('fit.py', 'donor.py', 'body.py', 'bind.py', 'label.py', 'meshes.py', 'gltf.py', 'glbwrite.py')
+REGION_OF = {'sleeve': 'arm', 'cuff': 'arm', 'pant_leg': 'leg', 'footwear': 'leg', 'pants': 'hips',
+             'hanging': 'hanging'}
+RIGID_CLASSES = ('hardware',)
+
+
+def label_region(name):
+    """Garment label -> body region: sleeve/cuff -> arm.side, legwear/footwear -> leg.side, pants -> hips,
+    hanging -> hanging (led by the pelvis), everything else (torso, collar, hood, waistband, attachments,
+    hardware) -> trunk."""
+    base, _, side = name.partition('.')
+    kind = REGION_OF.get(base, 'trunk')
+    return f'{kind}.{side}' if kind in ('arm', 'leg') and side else kind
+
+
+def point_regions(labels, triangles, count):
+    """Region of every cage vertex: the most common region of the faces around it (skin and 'none' left blank;
+    the fit gives those the region of the nearest donor vertex)."""
+    face_region = np.array([label_region(n) if n not in ('skin', 'none') else '' for n in labels], dtype=object)
+    votes = {}
+    for corner in range(3):
+        for vertex, region in zip(triangles[:, corner], face_region):
+            if region:
+                votes.setdefault(vertex, {}).setdefault(region, 0)
+                votes[vertex][region] += 1
+    out = np.array([''] * count, dtype=object)
+    for vertex, tally in votes.items():
+        out[vertex] = max(tally, key=tally.get)
+    return out
+
+
+def donor_region_sets(body, positions, crotch, band=(0.15, 0.10), overlap=0.05):
+    """Donor vertex indices per region. A region includes every vertex with at least `overlap` of its skin
+    weight in that region, so neighbouring regions share the body's own blend zones (shoulders, hips) and
+    garment seams that do not sit exactly on the body's boundaries still move smoothly. Left and right
+    never mix. hips = trunk + legs around the crotch, so trouser seats do not split."""
+    sets = {r: np.flatnonzero(body.region_weight[r] >= overlap)
+            for r in ('trunk', 'arm.left', 'arm.right', 'leg.left', 'leg.right')}
+    near = (positions[:, 2] > crotch - band[0]) & (positions[:, 2] < crotch + band[1])
+    sets['hips'] = np.flatnonzero(near & ((body.region_weight['trunk'] >= overlap) |
+                                          (body.region_weight['leg.left'] >= overlap) |
+                                          (body.region_weight['leg.right'] >= overlap)))
+    # Hanging cloth (tails, dangling straps) follows the pelvis as one piece, not whichever thigh is nearer.
+    sets['hanging'] = np.flatnonzero(body.region_weight['trunk'] >= 0.5)
+    sets[''] = np.arange(len(positions))                                    # skin / unknown: any region
+    return sets
+
+
+def gaussian_blend(points, regions, anchors, sets, k, sigma_of_nearest, sigma_floor):
+    """Per point: (indices of its k nearest same-region anchors, normalised Gaussian weights)."""
+    count = len(points)
+    index = np.zeros((count, k), dtype=np.int64)
+    weight = np.zeros((count, k))
+    for region in np.unique(regions):
+        chosen = np.flatnonzero(regions == region)
+        members = sets.get(region, sets[''])
+        kk = min(k, len(members))
+        distance, nearest = cKDTree(anchors[members]).query(points[chosen], k=kk)
+        distance, nearest = distance.reshape(len(chosen), kk), nearest.reshape(len(chosen), kk)
+        sigma = np.maximum(sigma_of_nearest * distance[:, :1], sigma_floor)
+        w = np.exp(-0.5 * (distance / sigma) ** 2)
+        index[chosen, :kk], weight[chosen, :kk] = members[nearest], w / w.sum(axis=1, keepdims=True)
+    return index, weight
+
+
+def rigid_fit(source, moved, max_rotation_degrees=None):
+    """Rotation R and translation t moving `source` onto `moved` (least squares, no scaling),
+    with the rotation angle optionally clamped."""
+    a, b = source.mean(axis=0), moved.mean(axis=0)
+    u, _, vt = np.linalg.svd((source - a).T @ (moved - b))
+    d = np.sign(np.linalg.det(vt.T @ u.T))
+    rotation = vt.T @ np.diag([1, 1, d]) @ u.T
+    angle = np.degrees(np.arccos(np.clip((np.trace(rotation) - 1) / 2, -1, 1)))
+    if max_rotation_degrees is not None and angle > max_rotation_degrees:
+        axis = np.array([rotation[2, 1] - rotation[1, 2], rotation[0, 2] - rotation[2, 0], rotation[1, 0] - rotation[0, 1]])
+        axis /= np.linalg.norm(axis)
+        rotation = donor.rotation_between_axis_angle(axis, np.radians(max_rotation_degrees))
+    return rotation, b - rotation @ a, float(angle)
+
+
+def rigid_groups(labels, triangles, graph):
+    """Pieces that must keep their exact shape (spec §5.6 C): each connected hardware piece, and each whole
+    shoe (boot shafts get their own treatment in the shoes step); pieces that touch merge into one."""
+    vertex_sets = []
+    piece, count = meshes.parts(graph, np.isin(labels, RIGID_CLASSES))
+    for k in range(count):
+        vertex_sets.append(('hardware', np.unique(triangles[piece == k])))
+    for side in ('left', 'right'):
+        vertex_sets.append((f'shoe.{side}', np.unique(triangles[labels == f'footwear.{side}'])))
+    # A hardware piece touching a shoe is part of that shoe (a buckle on a strap): two separate rigid fits
+    # would tear the faces joining them. It joins only the shoe it shares most points with, and the two
+    # shoes never merge, even where the source mesh joins them.
+    shoes = [[name, vertices] for name, vertices in vertex_sets if name.startswith('shoe') and len(vertices) >= 4]
+    merged = []
+    for name, vertices in vertex_sets:
+        if name.startswith('shoe') or len(vertices) < 4:
+            continue
+        shared = [np.intersect1d(shoe[1], vertices).size for shoe in shoes]
+        if shared and max(shared) > 0:
+            best = int(np.argmax(shared))
+            shoes[best][1] = np.union1d(shoes[best][1], vertices)
+        else:
+            merged.append((name, vertices))
+    for shoe_a, shoe_b in ((0, 1),) if len(shoes) == 2 else ():
+        common = np.intersect1d(shoes[shoe_a][1], shoes[shoe_b][1])         # joined in the source: split the seam
+        shoes[shoe_b][1] = np.setdiff1d(shoes[shoe_b][1], common)
+    merged += [(name, vertices) for name, vertices in shoes]
+    return [{'name': name, 'vertices': vertices} for name, vertices in merged]
+
+
+def point_adjacency(triangles, count):
+    """Row-normalised vertex adjacency of the welded cage (for blending fields across label seams)."""
+    from scipy.sparse import coo_matrix, diags
+    i = np.concatenate([triangles[:, 0], triangles[:, 1], triangles[:, 2]])
+    j = np.concatenate([triangles[:, 1], triangles[:, 2], triangles[:, 0]])
+    matrix = coo_matrix((np.ones(2 * len(i)), (np.r_[i, j], np.r_[j, i])), shape=(count, count)).tocsr()
+    matrix.data[:] = 1.0
+    return diags(1.0 / np.maximum(np.asarray(matrix.sum(axis=1)).ravel(), 1)) @ matrix
+
+
+def seam_band(adjacency, regions, rings):
+    """Points within `rings` edges of a point of another region: where the field must change smoothly."""
+    codes = np.unique(regions, return_inverse=True)[1].astype(float)
+    neighbour_mean = adjacency @ codes
+    band = np.abs(neighbour_mean - codes) > 1e-9
+    for _ in range(rings):
+        band = band | ((adjacency @ band.astype(float)) > 0)
+    return band
+
+
+def blend_across_seams(values, adjacency, band, iterations):
+    """Harmonic blend of a per-point field inside the seam band, with the values outside held fixed.
+    The field (un-pose transforms, transfer moves) then changes smoothly from one label region to the next
+    instead of jumping where a sleeve label meets a bodice label."""
+    values = values.reshape(len(values), -1).copy()
+    inside = np.flatnonzero(band)
+    for _ in range(iterations):
+        values[inside] = (adjacency @ values)[inside]
+    return values
+
+
+def unpose(points, regions, built, config_fit, adjacency=None, band=None):
+    """Step B: posed (source) cage points -> the donor's rest pose."""
+    body = built['body']
+    inverse = np.linalg.inv(bodies.vertex_matrices(body, built['pose']))
+    sets = donor_region_sets(body, built['posed'], built['crotch_posed'])
+    height = float(built['posed'][:, 2].max() - built['posed'][:, 2].min())
+    index, weight = gaussian_blend(points, regions, built['posed'], sets, config_fit['unpose_neighbours'],
+                                   config_fit['transfer_sigma_of_nearest'], config_fit['transfer_sigma_of_height'] * height)
+    blended = np.einsum('pk,pkij->pij', weight, inverse[index])
+    if band is not None and band.any():
+        blended = blend_across_seams(blended, adjacency, band, config_fit['seam_blend_iterations']).reshape(-1, 4, 4)
+    return np.einsum('pij,pj->pi', blended[:, :3, :3], points) + blended[:, :3, 3]
+
+
+def transfer(points, regions, donor_rest, target_rest, body, crotch, config_fit, adjacency=None, band=None):
+    """Step C: donor-rest cage points -> a target body, by the smooth field of exact body vertex moves."""
+    sets = donor_region_sets(body, donor_rest, crotch)
+    height = float(donor_rest[:, 2].max() - donor_rest[:, 2].min())
+    index, weight = gaussian_blend(points, regions, donor_rest, sets, config_fit['transfer_neighbours'],
+                                   config_fit['transfer_sigma_of_nearest'], config_fit['transfer_sigma_of_height'] * height)
+    moves = np.einsum('pk,pkj->pj', weight, (target_rest - donor_rest)[index])
+    if band is not None and band.any():
+        moves = blend_across_seams(moves, adjacency, band, config_fit['seam_blend_iterations'])
+    return points + moves
+
+
+def place_rigid(source, moved, groups, max_rotation=None):
+    """Replace each rigid group's moved points by an exact copy of its source shape fitted to them."""
+    out = moved.copy()
+    record = []
+    for group in groups:
+        v = group['vertices']
+        rotation, shift, angle = rigid_fit(source[v], moved[v], max_rotation)
+        out[v] = source[v] @ rotation.T + shift
+        record.append({'name': group['name'], 'points': int(len(v)), 'field_rotation_deg': round(angle, 2)})
+    return out, record
+
+
+def stretch(source, fitted, triangles, keep):
+    """Faces whose longest edge grew more than 3x and 10x versus the source (spec §5.7), among faces kept."""
+    def edges(p):
+        a, b, c = p[triangles[:, 0]], p[triangles[:, 1]], p[triangles[:, 2]]
+        return np.stack([np.linalg.norm(b - a, axis=1), np.linalg.norm(c - b, axis=1), np.linalg.norm(a - c, axis=1)], 1)
+    ratio = (edges(fitted) / np.maximum(edges(source), 1e-9)).max(axis=1)[keep]
+    return {'faces': int(keep.sum()), 'over_3x': int((ratio > 3).sum()), 'over_10x': int((ratio > 10).sum()),
+            'p99_ratio': round(float(np.percentile(ratio, 99)), 3)}
+
+
+def run(ctx, out):
+    config_fit = settings.section('fit')
+    cage = read_textured_mesh(ctx.output_of('intake')/'CAGE.glb')
+    labels = np.load(ctx.output_of('label')/'labels.npz')['labels'].astype(str)
+    binding = json.loads((ctx.output_of('bind')/'binding.json').read_text(encoding='utf-8'))
+    centres = cage.positions[cage.triangles].mean(axis=1)
+    _, areas = meshes.face_normals(cage.positions, cage.triangles)
+
+    # one result per welded vertex, so UV-split twins can never separate
+    welded = meshes.weld(cage.positions)
+    first = np.unique(welded, return_index=True)[1]
+    unique_points = cage.positions[first]
+    unique_triangles = welded[cage.triangles]
+    regions = point_regions(labels, unique_triangles, len(unique_points))
+    graph = meshes.face_graph(cage.positions, cage.triangles)
+
+    built = donor.build(binding, labels, centres, areas, config_fit)
+    body = built['body']
+    # Points with no garment region (mannequin skin, unknown) take the region of the donor vertex nearest
+    # them, so neck skin belongs to the trunk and never follows a raised arm.
+    blank = regions == ''
+    if blank.any():
+        nearest = cKDTree(built['posed']).query(unique_points[blank])[1]
+        regions[blank] = body.vertex_region[nearest]
+    built['crotch_posed'] = binding['crotch']['height_m']
+    donor_crotch = float(bodies.landmarks(body, built['rest'])['crotch_height_m'])
+    groups = rigid_groups(labels, unique_triangles, graph)
+    adjacency = point_adjacency(unique_triangles, len(unique_points))
+    band = seam_band(adjacency, regions, config_fit['seam_blend_rings'])
+
+    rest_points = unpose(unique_points, regions, built, config_fit, adjacency, band)
+    rest_points, rigid_unpose = place_rigid(unique_points, rest_points, groups)
+
+    keep = labels != 'skin'
+    summary = {}
+    for target in config.BODIES:
+        folder = out/target
+        folder.mkdir()
+        target_rest = bodies.load(target).positions
+        fitted = transfer(rest_points, regions, built['rest'], target_rest, body, donor_crotch, config_fit,
+                          adjacency, band)
+        fitted, rigid_transfer = place_rigid(rest_points, fitted, groups, config_fit['rigid_max_rotation_degrees'])
+        positions = fitted[welded]
+        stretched = stretch(cage.positions, positions, cage.triangles, keep)
+        np.savez_compressed(folder/'cage-fit.npz', positions=positions.astype(np.float32),
+                            rest_positions=rest_points[welded].astype(np.float32), regions=regions[welded].astype(str))
+        write_mesh(folder/'DRAFT.glb', positions, cage.triangles[keep], uvs=cage.uvs, texture_png=cage.texture_png,
+                   name=f'{target}-draft')
+        report = {'status': 'preview_steps_A-C', 'body': target, 'fit_reviewed': False, 'game_ready': False,
+                  'note': 'cage preview: no clearance solve (Step D), skinning (F) or full resolution (G) yet',
+                  'settings': json.loads(json.dumps(dict(config_fit), default=list)),
+                  'donor': built['record'], 'rigid_groups': {'unpose': rigid_unpose, 'transfer': rigid_transfer},
+                  'stretch_vs_source': stretched, 'gates': {}}
+        (folder/'fit.report.json').write_text(json.dumps(report, indent=1, default=float), encoding='utf-8', newline='\n')
+        summary[target] = stretched
+    return {'donor': {k: built['record'][k] for k in ('scale', 'leg_scale', 'pose')}, 'stretch': summary,
+            'rigid_groups': [g['name'] for g in groups]}

@@ -80,6 +80,9 @@ def cmd_preview(args):
         folder, record = donor_preview(args.name)
         print(f'[fp] donor: scale {record["scale"]}, legs {record["leg_scale"]}, pose {record["pose"]}')
         print(f'[fp] renders in {folder}')
+    if args.fit:
+        from .preview import fit_preview
+        print(f'[fp] renders in {fit_preview(args.name)}')
     return 0
 
 
@@ -122,6 +125,7 @@ def build_parser():
     preview = commands.add_parser('preview', help='review renders for fit work (Blender, writes runs/_review/)')
     preview.add_argument('name')
     preview.add_argument('--donor', action='store_true', help='the donor inside the outfit')
+    preview.add_argument('--fit', action='store_true', help='the source, then every body wearing its draft')
     preview.set_defaults(handler=cmd_preview)
 
     view = commands.add_parser('view', help='open the 3D review viewer on this computer')

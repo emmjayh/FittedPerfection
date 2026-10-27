@@ -51,6 +51,13 @@ def rotation_between(a, b):
     return np.eye(3) + s * cross + (1 - c) * cross @ cross
 
 
+def rotation_between_axis_angle(axis, angle):
+    """Rotation of `angle` radians about the unit `axis` (Rodrigues)."""
+    k = np.asarray(axis, dtype=np.float64) / np.linalg.norm(axis)
+    cross = np.array([[0, -k[2], k[1]], [k[2], 0, -k[0]], [-k[1], k[0], 0]])
+    return np.eye(3) + np.sin(angle) * cross + (1 - np.cos(angle)) * cross @ cross
+
+
 def apply(matrix, point):
     return matrix[:3, :3] @ point + matrix[:3, 3]
 
@@ -62,8 +69,11 @@ def build(binding, labels, garment_centres, garment_areas, config, body_id='body
     bones = len(body.bone_names)
     record = {'body': body_id}
 
-    # 1. scale on the shoulder centre by the shoulder-to-crotch span, then move onto the garment's shoulder centre
-    body_shoulder = np.array(marks['shoulders']['centre'])
+    # 1. scale on the shoulder centre by the shoulder-to-crotch span, then move onto the garment's shoulder centre;
+    #    the body's shoulders are measured the way bind measured the garment's (sleeve roots or shoulder_top)
+    sleeveless = binding['shoulders']['method'].startswith('shoulder_top')
+    body_shoulder = np.array(marks['shoulder_top' if sleeveless else 'shoulders']['centre'])
+    record['shoulders_measured_by'] = marks['shoulder_top' if sleeveless else 'shoulders']['method']
     garment_shoulder = np.array(binding['shoulders']['centre'])
     body_span = body_shoulder[2] - marks['crotch_height_m']
     garment_span = garment_shoulder[2] - binding['crotch']['height_m']

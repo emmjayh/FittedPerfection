@@ -27,6 +27,14 @@ These decisions override the original text below where they differ.
 - **Labels are checked visually only.** The step 2 regression check against the
   prototype's labels is dropped.
 - **Hackathon use only.** Commercial licence checks (§4a) are out of scope for now.
+- **Donor leg length is clamped to 0.85–1.6, not 0.85–1.2** (§5.6 A). Generator figures often
+  have much longer legs than the MPFB bodies (2 of 5 dev outfits need 1.35–1.57). At 1.2 the
+  donor stands on the floor with its trunk 15–20 cm low, and the top transfers above the
+  bodies' heads. Bind already keeps the crotch within ±0.07 × shoulder height of its prior,
+  which works out to about 0.85–1.6 for the donor, so the clamp only catches what bind would
+  have refused.
+- **Body shoulders are measured the way bind measured the garment's:** sleeve roots, or
+  `shoulder_top` for sleeveless garments.
 
 ---
 

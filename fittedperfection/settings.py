@@ -67,9 +67,12 @@ _VALUES = {
         'toe_over_heel_min': 1.4,          # shoe-only toe/heel reach needed to confirm a provisional facing
     },
     'fit': {
-        'leg_length_range': [0.85, 1.2],
+        'leg_length_range': [0.85, 1.6],   # spec 0.85-1.2; raised to what bind's crotch band allows (see SPEC changes)
         'girth_range': [0.85, 1.15],
         'transfer_neighbours': 32,
+        'unpose_neighbours': 16,
+        'seam_blend_rings': 6,             # how far either side of a label seam the field is blended
+        'seam_blend_iterations': 60,
         'transfer_sigma_of_nearest': 2.0,
         'transfer_sigma_of_height': 0.03,
         'rigid_max_rotation_degrees': 25.0,
