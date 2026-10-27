@@ -24,7 +24,21 @@ def arguments():
     parser.add_argument('--out', required=True)
     parser.add_argument('--name', required=True)
     parser.add_argument('--item', action='append', required=True)
+    parser.add_argument('--pose', action='store_true')
     return parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
+
+
+# Audit test pose (spec §5.7): elbows 60 degrees, knees 30 degrees, about each bone's own X axis.
+TEST_POSE = {'lowerarm01.L': 60, 'lowerarm01.R': 60, 'lowerleg01.L': 30, 'lowerleg01.R': 30}
+
+
+def apply_pose():
+    for armature in [o for o in bpy.data.objects if o.type == 'ARMATURE']:
+        for bone, degrees in TEST_POSE.items():
+            pose_bone = armature.pose.bones.get(bone)
+            if pose_bone is not None:
+                pose_bone.rotation_mode = 'XYZ'
+                pose_bone.rotation_euler = (math.radians(degrees), 0.0, 0.0)
 
 
 def no_metadata(render):
@@ -96,6 +110,8 @@ def main():
         for item in args.item:
             path, style, offset = parse_item(item)
             meshes += import_item(path, style, offset, axis)
+        if args.pose:
+            apply_pose()
         low, high = bounds(meshes)
         centre = (low + high) / 2
         width = (high.x - low.x) if view == 'front' else (high.y - low.y)

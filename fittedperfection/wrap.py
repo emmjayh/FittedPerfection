@@ -57,6 +57,26 @@ def closest_on_triangles(p, a, b, c):
     return a + ab * v[:, None] + ac * w[:, None], np.column_stack([1 - v - w, v, w])
 
 
+def closest_on_mesh(points, positions, triangles, faces, tree, k=CANDIDATES):
+    """Closest point on the given faces of a mesh (tree: a cKDTree of those faces' centres), checking the k
+    nearest by centre exactly: point, barycentric coordinates, face index, distance."""
+    k = min(k, len(faces))
+    _, nearest = tree.query(points, k=k)
+    nearest = faces[nearest.reshape(len(points), k)]
+    best_q, best_bary, best_face = None, None, None
+    best_d = np.full(len(points), np.inf)
+    for column in range(k):
+        tri = triangles[nearest[:, column]]
+        q, bary = closest_on_triangles(points, *(positions[tri[:, i]] for i in range(3)))
+        d = np.linalg.norm(points - q, axis=1)
+        better = d < best_d
+        if best_q is None:
+            best_q, best_bary, best_face = q, bary, nearest[:, column].copy()
+        best_q[better], best_bary[better], best_face[better] = q[better], bary[better], nearest[better, column]
+        best_d = np.minimum(best_d, d)
+    return best_q, best_bary, best_face, best_d
+
+
 class Skin:
     """A body surface for closest-point queries, optionally restricted to the faces of a region."""
 
@@ -71,26 +91,17 @@ class Skin:
         self.centres = positions[triangles].mean(axis=1)
         self._trees = {}
 
-    def heights(self, points, faces=None, key='all'):
-        """Signed height of each point above the skin (only `faces`, cached under `key`), its closest skin
-        point, the outward unit direction and the skin face it lies on."""
+    def closest(self, points, faces=None, key='all'):
+        """Closest point on the skin (only `faces`, cached under `key`): point, barycentric coordinates, face, distance."""
         faces = np.arange(len(self.triangles)) if faces is None else faces
         if key not in self._trees:
             self._trees[key] = cKDTree(self.centres[faces])
-        k = min(CANDIDATES, len(faces))
-        _, nearest = self._trees[key].query(points, k=k)
-        nearest = faces[nearest.reshape(len(points), k)]
-        best_q, best_bary, best_face = None, None, None
-        best_d = np.full(len(points), np.inf)
-        for column in range(k):
-            tri = self.triangles[nearest[:, column]]
-            q, bary = closest_on_triangles(points, *(self.positions[tri[:, i]] for i in range(3)))
-            d = np.linalg.norm(points - q, axis=1)
-            better = d < best_d
-            if best_q is None:
-                best_q, best_bary, best_face = q, bary, nearest[:, column].copy()
-            best_q[better], best_bary[better], best_face[better] = q[better], bary[better], nearest[better, column]
-            best_d = np.minimum(best_d, d)
+        return closest_on_mesh(points, self.positions, self.triangles, faces, self._trees[key])
+
+    def heights(self, points, faces=None, key='all'):
+        """Signed height of each point above the skin (only `faces`, cached under `key`), its closest skin
+        point, the outward unit direction and the skin face it lies on."""
+        best_q, best_bary, best_face, best_d = self.closest(points, faces, key)
         tri = self.triangles[best_face]
         normal = np.einsum('pk,pkj->pj', best_bary, self.vertex_normals[tri])
         normal /= np.maximum(np.linalg.norm(normal, axis=1, keepdims=True), 1e-12)
