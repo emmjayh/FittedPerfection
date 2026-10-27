@@ -48,6 +48,28 @@ def donor_preview(name):
     return out, built['record']
 
 
+def turntable(name, count=120):
+    """runs/_review/turntable-NAME.mp4: the source and each body wearing its outfit, spinning side by side."""
+    run_folder = config.runs_folder()/name
+    out = config.runs_folder()/'_review'/f'turntable-{name}'
+    out.mkdir(parents=True, exist_ok=True)
+    items = [f'source|{run_folder/"full"/"GARMENT.glb"}|texture']
+    for body in config.BODIES:
+        folder = run_folder/'fit'/body
+        items += [f'{body}|{folder/"BODY.glb"}|skin', f'{body}|{folder/"OUTFIT.glb"}|texture']
+    video = out.parent/f'turntable-{name}.mp4'
+    command = [str(config.blender()), '--background', '--factory-startup', '--python-exit-code', '1', '--python',
+               str(config.PACKAGE/'blender'/'turntable.py'), '--', '--out', str(video), '--frames', str(out/'frames'),
+               '--title', f'{name}: source, then the four bodies', '--count', str(count)]
+    for item in items:
+        command += ['--item', item]
+    log = out/'turntable.log'
+    with open(log, 'w', encoding='utf-8') as stream:
+        if subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT).returncode:
+            raise RuntimeError(f'turntable render failed; see {log}')
+    return video
+
+
 def fit_preview(name, spacing=1.3, pose=False):
     """The source, then each body (BODY.glb: raised, covered faces hidden) wearing its full-resolution OUTFIT.glb
     (or the cage DRAFT.glb before Step G existed). pose: elbows and knees bent (spec §5.7 test pose)."""
