@@ -122,15 +122,17 @@ def build(binding, labels, garment_centres, garment_areas, config, body_id='body
             per_bone[bone] = (lift if bone in above else stretch_neck) @ per_bone[bone]
         rest0 = bodies.skin(body, per_bone)
 
-    # 3. centre the trunk horizontally inside the torso/trouser cloth
+    # 3. centre the trunk front-to-back inside the torso/trouser cloth. Not side to side: step 1 already put the
+    #    donor on the garment's shoulder centre, and pockets, chains or straps on one side pull the cloth's average
+    #    over (3.6 cm on baddietanknoarms), which put every fit off to one side.
     trunk_cloth = np.isin(labels, ('torso', 'pants', 'waistband')) & \
         (garment_centres[:, 2] > wanted + 0.1) & (garment_centres[:, 2] < garment_shoulder[2] - 0.1)
     trunk_body = (body.vertex_region == 'trunk') & (rest0[:, 2] - rest0[:, 2].min() > wanted + 0.1) & \
         (rest0[:, 2] - rest0[:, 2].min() < garment_shoulder[2] - 0.1)
     shift = np.zeros(3)
     if trunk_cloth.sum() > 20 and trunk_body.sum() > 20:
-        shift[:2] = np.average(garment_centres[trunk_cloth, :2], axis=0, weights=garment_areas[trunk_cloth]) - \
-            rest0[trunk_body, :2].mean(axis=0)
+        shift[1] = np.average(garment_centres[trunk_cloth, 1], weights=garment_areas[trunk_cloth]) - \
+            rest0[trunk_body, 1].mean()
     centre = translation(shift)
     record['trunk_shift_m'] = np.round(shift, 4).tolist()
     rest_bones = np.einsum('ij,bjk->bik', centre @ stand, per_bone)
