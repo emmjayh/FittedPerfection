@@ -324,6 +324,16 @@ def run(ctx, out):
     label_file = np.load(ctx.output_of('label')/'labels.npz')
     printed = np.unique(unique_triangles[label_file['prints']]) if 'prints' in label_file.files         else np.zeros(0, dtype=np.int64)
     looseness_kept = wrap.point_keep(labels, unique_triangles, len(unique_points), config_fit['wrap_keep'])
+    # boot shafts are structured (leather, laced), not drape: they keep their looseness and stay stiff in the wrap,
+    # so a boot keeps its shape; contact still keeps the calf inside
+    shafts = np.concatenate([p['shaft'] for p in shoe_parts.values()]) if shoe_parts else np.zeros(0, dtype=np.int64)
+    looseness_kept[shafts] = 1.0
+    stiff = np.union1d(printed, shafts)
+    # faces joining the left and right shoe (the generator fused shoes that touch in the source) belong to neither;
+    # each shoe goes to its own foot, so they would stretch into a bar between the feet
+    sides = [np.isin(unique_triangles, p['vertices']).any(axis=1) for p in shoe_parts.values()]
+    bridge = sides[0] & sides[1] if len(sides) == 2 else np.zeros(len(labels), dtype=bool)
+    keep = keep & ~bridge
     rigid = np.unique(np.concatenate([g['vertices'] for g in groups])) if groups else np.zeros(0, dtype=np.int64)
     rigid = np.setdiff1d(rigid, np.concatenate([p['shaft'] for p in shoe_parts.values()]) if shoe_parts else [])
     cloth = np.unique(unique_triangles[keep & ~np.char.startswith(labels, 'footwear')])
@@ -336,8 +346,8 @@ def run(ctx, out):
     full_binding = fullres.bind(full_points, fullres.vertex_labels(full_face_labels, garment.triangles, full_welded),
                                 unique_points, unique_triangles, labels)
     full_regions = regions[unique_triangles[full_binding['face'], 0]]
-    full_keep = full_face_labels != 'skin'
-    shafts = np.concatenate([p['shaft'] for p in shoe_parts.values()]) if shoe_parts else np.zeros(0, dtype=np.int64)
+    full_bridge = bridge[full_binding['face']][full_welded][garment.triangles].any(axis=1)
+    full_keep = (full_face_labels != 'skin') & ~full_bridge
     rigid_parts = [np.setdiff1d(g['vertices'], shafts) for g in groups]
     summary = {}
     for target in config.BODIES:
@@ -372,7 +382,7 @@ def run(ctx, out):
                                          skin_regions(target_body, regions), rigid, config_fit, target_body.height,
                                          lambda field: blend_across_seams(field, adjacency, band,
                                                                           config_fit['seam_blend_iterations']),
-                                         printed)
+                                         stiff)
         wrap_record['before'] = before
         wrap_record['after'] = {'offsets': wrap.offsets(fitted, skin, cloth)}
         # raise everything by the sole so the shoes stand on the floor (the body is offset, never changed), then
@@ -404,18 +414,23 @@ def run(ctx, out):
         full_fit, full_group = fullres.rebuild(full_binding, full_points, unique_points, fitted, unique_triangles,
                                                rotation, local_scale, rigid_parts)
         full_fit -= [0.0, 0.0, lift]
+        # full-resolution faces with corners on both shoes span the gap between the feet too
+        shoe_ids = [k for k, g in enumerate(groups) if g['name'].startswith('shoe.')]
+        corner_group = full_group[full_welded][garment.triangles]
+        shown = full_keep & ~(np.isin(corner_group, shoe_ids[:1]).any(axis=1) &
+                              np.isin(corner_group, shoe_ids[1:]).any(axis=1)) if len(shoe_ids) == 2 else full_keep
         joints, weights = fullres.skin_weights(full_fit, skin_regions(target_body, full_regions, weights=full_fit), skin,
                                                target_body.joints, target_body.weights, full_group,
                                                config_fit['max_influences'])
-        write_mesh(folder/'OUTFIT.glb', full_fit[full_welded], garment.triangles[full_keep], uvs=garment.uvs,
+        write_mesh(folder/'OUTFIT.glb', full_fit[full_welded], garment.triangles[shown], uvs=garment.uvs,
                    texture_png=garment.texture_png, name=f'{target}-outfit',
                    skin={'joints': joints[full_welded], 'weights': weights[full_welded], 'skeleton': skeleton,
                          'root_offset_m': lift})
-        full_record = {'vertices': int(len(garment.positions)), 'faces_kept': int(full_keep.sum()),
+        full_record = {'vertices': int(len(garment.positions)), 'faces_kept': int(shown.sum()),
                        'binding_distance_cm': {'p50': round(float(np.percentile(full_binding['distance'], 50)) * 100, 2),
                                                'p99': round(float(np.percentile(full_binding['distance'], 99)) * 100, 2)},
                        'stretch_vs_source': stretch(garment.positions, full_fit[full_welded], garment.triangles,
-                                                    full_keep),
+                                                    shown),
                        'influences_used_mean': round(float((weights > 1e-6).sum(axis=1).mean()), 2)}
         positions = fitted[welded]
         stretched = stretch(cage.positions, positions, cage.triangles, keep)
@@ -426,7 +441,7 @@ def run(ctx, out):
                    name=f'{target}-draft')
         report = {'status': 'preview_steps_A-G', 'body': target, 'fit_reviewed': False, 'game_ready': False,
                   'note': 'OUTFIT.glb is the full-resolution outfit skinned to this body; not reviewed',
-                  'root_offset_m': round(float(lift), 4), 'printed_points': int(len(printed)), 'shoes': shoe_record, 'full_resolution': full_record,
+                  'root_offset_m': round(float(lift), 4), 'printed_points': int(len(printed)), 'shaft_points': int(len(shafts)), 'shoe_bridge_faces': int(bridge.sum()), 'shoes': shoe_record, 'full_resolution': full_record,
                   'hidden_body_faces': int(len(hidden)),
                   'settings': json.loads(json.dumps(dict(config_fit), default=list)),
                   'donor': built['record'], 'rigid_groups': {'unpose': rigid_unpose, 'transfer': rigid_transfer},
