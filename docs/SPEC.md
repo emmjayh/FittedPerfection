@@ -73,8 +73,13 @@ These decisions override the original text below where they differ.
     (`root_offset_m`, a single translation for the game). The body itself is unchanged.
   - **Ghost removal:** body faces inside or poking through a shoe are listed as hidden
     (`hidden_body_faces.npy`). `BODY.glb` is the body as shown.
-  - **Boot shafts:** footwear rising at least 15 cm above the ankle line is wrapped with the
-    clothes (Step D), not warped separately; lower shoes stay fully rigid.
+  - **Boot shafts:** footwear rising at least 15 cm above the ankle line follows the leg rather
+    than the rigid shoe. In the wrap it keeps its looseness and is stiff, like a print, so a boot
+    keeps its structured shape; contact still keeps the calf inside. Lower shoes stay fully rigid.
+    Wrapping shafts 70% in like cloth made moonshorts' boots look melted.
+  - **Shoes fused in the source:** faces joining the left and right shoe (the generator fuses shoes
+    that touch) are dropped. Each shoe goes to its own foot, so those faces stretched into a bar
+    between the feet (hallowewenbaddie).
 - **Steps F–G deliverable:** `fit/<body>/OUTFIT.glb` is the full-resolution outfit with its
   texture, skinned to the body's own skeleton (4 influences), with a root node carrying
   `root_offset_m`. `BODY.glb` is the shown body (covered faces hidden) on the same skeleton.
