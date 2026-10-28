@@ -273,6 +273,11 @@ def run(ctx, out):
     unique_points = cage.positions[first]
     unique_triangles = welded[cage.triangles]
     regions = point_regions(labels, unique_triangles, len(unique_points))
+    # a sleeve bind rejected (a sliver too small to be one, on a sleeveless top) is part of the torso: following the
+    # arm would drag the shoulder out sideways
+    for side in ('left', 'right'):
+        if not (binding.get('sleeves') or {}).get(side):
+            regions[regions == f'arm.{side}'] = 'trunk'
     graph = meshes.face_graph(cage.positions, cage.triangles)
 
     built = donor.build(binding, labels, centres, areas, config_fit)
