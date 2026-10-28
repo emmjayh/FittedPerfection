@@ -315,6 +315,9 @@ def run(ctx, out):
     for part in shoe_parts.values():
         part['thickness'] = max(measured) if measured else part['thickness']
     keep = labels != 'skin'
+    # printed designs (label stage) are kept stiff in the wrap
+    label_file = np.load(ctx.output_of('label')/'labels.npz')
+    printed = np.unique(unique_triangles[label_file['prints']]) if 'prints' in label_file.files         else np.zeros(0, dtype=np.int64)
     looseness_kept = wrap.point_keep(labels, unique_triangles, len(unique_points), config_fit['wrap_keep'])
     rigid = np.unique(np.concatenate([g['vertices'] for g in groups])) if groups else np.zeros(0, dtype=np.int64)
     rigid = np.setdiff1d(rigid, np.concatenate([p['shaft'] for p in shoe_parts.values()]) if shoe_parts else [])
@@ -363,7 +366,8 @@ def run(ctx, out):
         fitted, wrap_record = wrap.solve(fitted, unique_triangles, looseness_kept, skin,
                                          skin_regions(target_body, regions), rigid, config_fit, target_body.height,
                                          lambda field: blend_across_seams(field, adjacency, band,
-                                                                          config_fit['seam_blend_iterations']))
+                                                                          config_fit['seam_blend_iterations']),
+                                         printed)
         wrap_record['before'] = before
         wrap_record['after'] = {'offsets': wrap.offsets(fitted, skin, cloth)}
         # raise everything by the sole so the shoes stand on the floor (the body is offset, never changed), then
@@ -417,7 +421,7 @@ def run(ctx, out):
                    name=f'{target}-draft')
         report = {'status': 'preview_steps_A-G', 'body': target, 'fit_reviewed': False, 'game_ready': False,
                   'note': 'OUTFIT.glb is the full-resolution outfit skinned to this body; not reviewed',
-                  'root_offset_m': round(float(lift), 4), 'shoes': shoe_record, 'full_resolution': full_record,
+                  'root_offset_m': round(float(lift), 4), 'printed_points': int(len(printed)), 'shoes': shoe_record, 'full_resolution': full_record,
                   'hidden_body_faces': int(len(hidden)),
                   'settings': json.loads(json.dumps(dict(config_fit), default=list)),
                   'donor': built['record'], 'rigid_groups': {'unpose': rigid_unpose, 'transfer': rigid_transfer},

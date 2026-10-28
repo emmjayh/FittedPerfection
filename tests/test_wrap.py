@@ -100,3 +100,29 @@ def test_free_hanging_cloth_keeps_its_looseness():
 @pytest.mark.parametrize('name', ['wrap_keep', 'wrap_bulk_radius_m', 'contact_rounds', 'arap_iterations'])
 def test_wrap_settings_exist(name):
     assert name in CONFIG
+
+
+def shear(source, moved, triangles):
+    a, b, c = (source[triangles[:, k]] for k in range(3))
+    A, B, C = (moved[triangles[:, k]] for k in range(3))
+    e1, e2 = b - a, c - a
+    n = np.cross(e1, e2); n /= np.linalg.norm(n, axis=1, keepdims=True)
+    u = e1 / np.linalg.norm(e1, axis=1, keepdims=True); v = np.cross(n, u)
+    S = np.stack([np.stack([(e1 * u).sum(1), (e1 * v).sum(1)], 1), np.stack([(e2 * u).sum(1), (e2 * v).sum(1)], 1)], 2)
+    J = np.stack([B - A, C - A], 2) @ np.linalg.inv(S)
+    sv = np.linalg.svd(J, compute_uv=False)
+    return sv[:, 0] / sv[:, 1]
+
+
+def test_a_printed_patch_keeps_its_shape_while_the_tube_wraps():
+    points, triangles = tube(0.2, 0.3, 0.7)
+    grid = np.arange(len(points)).reshape(31, 48)
+    patch = grid[12:19, 4:12].ravel()
+    in_patch = np.isin(triangles, patch).all(axis=1)
+    everything = [('all', np.arange(len(points)), np.arange(len(BODY.triangles)))]
+    keep = np.full(len(points), CONFIG['wrap_keep'])
+    plain, _ = wrap.solve(points, triangles, keep, BODY, everything, np.zeros(0, int), CONFIG, HEIGHT)
+    printed, _ = wrap.solve(points, triangles, keep, BODY, everything, np.zeros(0, int), CONFIG, HEIGHT, printed=patch)
+    assert np.median(shear(points, printed, triangles[in_patch])) < np.median(shear(points, plain, triangles[in_patch]))
+    far = np.isin(triangles, grid[:, 30:40].ravel()).all(axis=1)              # plain fabric away from the print
+    assert np.abs(radius(printed)[grid[:, 30:40].ravel()] - radius(plain)[grid[:, 30:40].ravel()]).max() < 0.01

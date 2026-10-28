@@ -48,6 +48,16 @@ These decisions override the original text below where they differ.
   map elbow to elbow and wrist to wrist. Without a cuff the arm keeps its length. The generator
   figures' arms differed by up to 17 cm, which put cuffs past the fingertips (blackshirtsuspenderjeans)
   or above the wrists (blackpantsgreentop).
+- **Printed designs stay stiff in the wrap** (Step D's "source-shape energy", strengthened where the
+  design is printed):
+  - **Detection (label stage):** a print is a part of a garment piece whose colour stands out from
+    that piece's median colour, near a sharp colour edge. Baked-in shading changes gradually, so it
+    doesn't count.
+  - **Effect:** the wrap makes edges inside a print 20× stiffer (`print_stiffness`), so the plain
+    fabric takes up the squeeze of wrapping.
+  - **Why:** pulling a loose top in shortens it around the body but not top to bottom, which sheared
+    baddietanknoarms' barcode. Its worst shear drops from 2.06× to 1.46× on body_01, and the fit of
+    plain fabric is unchanged.
 - **Step D is a wrap that keeps the shape** (owner's direction: "a lot closer to the skin,
   essentially as a wrap, but without losing the entire shape"). Height above the skin splits into
   bulk (smoothed looseness) and relief (folds, pockets, ruffles). The wrap keeps all the relief and
