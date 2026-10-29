@@ -337,6 +337,11 @@ def run(ctx, out):
     rigid = np.unique(np.concatenate([g['vertices'] for g in groups])) if groups else np.zeros(0, dtype=np.int64)
     rigid = np.setdiff1d(rigid, np.concatenate([p['shaft'] for p in shoe_parts.values()]) if shoe_parts else [])
     cloth = np.unique(unique_triangles[keep & ~np.char.startswith(labels, 'footwear')])
+    # cloth meeting a shoe in the source (a stocking ending inside it, a trouser cuff over it): each point within
+    # shoe_join_blend_m of the footwear and its nearest footwear point, with a weight from 1 (touching) to 0
+    footwear = np.unique(np.concatenate([p['vertices'] for p in shoe_parts.values()])) if shoe_parts         else np.zeros(0, dtype=np.int64)
+    join, join_shoe, join_weight = shoes.join(unique_points, np.setdiff1d(cloth, rigid), footwear,
+                                             config_fit['shoe_join_blend_m'])
 
     # Step G1, once: bind the full-resolution outfit to the source cage (one result per welded vertex: twins agree)
     garment = read_textured_mesh(ctx.output_of('intake')/'GARMENT.glb')
@@ -374,6 +379,9 @@ def run(ctx, out):
             fitted[part['vertices']] = move(unique_points[part['vertices']])
             fitted[shaft] = (1 - ease_in)[:, None] * fitted[shaft] + ease_in[:, None] * field_placed[shaft]
             shoe_record[side].update(edge_found=part['edge_found'], shaft_points=int(len(part['shaft'])))
+        # the shoe goes to the foot and the cloth to the leg; where they met, the cloth follows the shoe (fading out),
+        # so no gap opens between them to show the cloth's end that the shoe hid
+        fitted[join] += join_weight[:, None] * (fitted[join_shoe] - field_placed[join_shoe])
         skin = wrap.Skin(target_rest, target_body.triangles, bare_skin(target_body))
         before = {'offsets': wrap.offsets(fitted, skin, cloth),
                   'stretch': stretch(cage.positions, fitted[welded], cage.triangles, keep)}
@@ -441,7 +449,7 @@ def run(ctx, out):
                    name=f'{target}-draft')
         report = {'status': 'preview_steps_A-G', 'body': target, 'fit_reviewed': False, 'game_ready': False,
                   'note': 'OUTFIT.glb is the full-resolution outfit skinned to this body; not reviewed',
-                  'root_offset_m': round(float(lift), 4), 'printed_points': int(len(printed)), 'shaft_points': int(len(shafts)), 'shoe_bridge_faces': int(bridge.sum()), 'shoes': shoe_record, 'full_resolution': full_record,
+                  'root_offset_m': round(float(lift), 4), 'printed_points': int(len(printed)), 'shaft_points': int(len(shafts)), 'shoe_join_points': int(len(join)), 'shoe_bridge_faces': int(bridge.sum()), 'shoes': shoe_record, 'full_resolution': full_record,
                   'hidden_body_faces': int(len(hidden)),
                   'settings': json.loads(json.dumps(dict(config_fit), default=list)),
                   'donor': built['record'], 'rigid_groups': {'unpose': rigid_unpose, 'transfer': rigid_transfer},

@@ -223,7 +223,7 @@ def wonder_review(out, labels):
     try:
         client = wonder.WonderClient(config.runs_folder()/'_cache'/'wonder', record['model'], models.API_BASE,
                                      api_key=secrets.api_key(), budget_usd=config.spend_allowance_usd())
-        text, summary = client.review(prompt, [composite], max_output_tokens=1500, effort='minimal')
+        text, summary = client.review(prompt, [composite], max_output_tokens=3000, effort='minimal')
     except SpendRefused as refused:
         return {**record, 'status': 'skipped (no spending allowed)', 'detail': str(refused)}
     except (SamApiError, ValueError, OSError) as failed:

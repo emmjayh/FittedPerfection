@@ -257,17 +257,48 @@ def skin_check(labels, scores, colours, centres, height, min_distance, spread_fa
 RECOVERABLE = ('torso', 'collar', 'attachment', 'sleeve', 'cuff', 'hood', 'waistband', 'hanging', 'none')
 
 
+def skin_coloured_parts(labels, colours, tone, limit, min_faces=50):
+    """Garment parts whose own median colour is within the skin limit of the skin tone (a white top on a white
+    mannequin): there colour cannot tell skin from fabric."""
+    if colours is None or tone is None or limit is None:
+        return set()
+    names = set()
+    for name in np.unique(labels):
+        group = labels == name
+        if name not in ('skin', 'none') and group.sum() >= min_faces and                 np.linalg.norm(np.median(colours[group], axis=0) - np.asarray(tone, dtype=float)) <= limit:
+            names.add(str(name))
+    return names
+
+
+def mirror_skin(labels, centres, colours, tone, limit):
+    """Where a garment part is skin-coloured, a bare-skin face whose mirror image (the same spot on the other
+    side) is that garment becomes garment (sides swapped): mannequins are symmetric, and colour cannot decide."""
+    ambiguous = skin_coloured_parts(labels, colours, tone, limit)
+    skin = np.flatnonzero(labels == 'skin')
+    if not ambiguous or not len(skin):
+        return 0
+    mirrored = centres[skin] * [-1.0, 1.0, 1.0]
+    partner = labels[cKDTree(centres).query(mirrored)[1]]
+    swap = {'left': 'right', 'right': 'left'}
+    change = np.array([str(p) in ambiguous for p in partner])
+    for face, name in zip(skin[change], partner[change]):
+        base, _, side = str(name).partition('.')
+        labels[face] = f'{base}.{swap[side]}' if side in swap else base
+    return int(change.sum())
+
+
 def recover_skin(labels, scores, colours, graph, tone, limit, min_score, outlier_factor):
     """The reverse of the skin check: garment-labelled faces that are bare mannequin skin become skin.
 
     A face qualifies when its colour matches the skin tone (within the skin check's limit) and either SAM saw
     skin there (cut-outs, a sliver on a sleeveless top) or it is clearly off-colour for its own label (a grey
     patch on a dark collar, where a mask bled past a strap), and it joins skin already found. Legwear and
-    footwear never qualify: pale stockings and boots match a pale mannequin."""
+    footwear never qualify: pale stockings and boots match a pale mannequin, and neither do parts that are
+    themselves skin-coloured (there colour cannot decide)."""
     if tone is None or limit is None or colours is None:
         return 0
     base = np.char.partition(labels.astype(str), '.')[:, 0]
-    allowed = np.isin(base, RECOVERABLE)
+    allowed = np.isin(base, RECOVERABLE) & ~np.isin(labels, list(skin_coloured_parts(labels, colours, tone, limit)))
     matches = np.linalg.norm(colours - np.asarray(tone, dtype=float), axis=1) <= limit
     outlier = np.zeros(len(labels), dtype=bool)
     for name in np.unique(labels[allowed]):
@@ -312,7 +343,7 @@ def full_resolution_labels(garment, cage, labels, scores, tone, limit, outlier_f
     if colours is None or tone is None or limit is None or not (labels == 'skin').any():
         return full, 0, nearest
     base = np.char.partition(full.astype(str), '.')[:, 0]
-    allowed = np.isin(base, RECOVERABLE)
+    allowed = np.isin(base, RECOVERABLE) & ~np.isin(full, list(skin_coloured_parts(full, colours, tone, limit)))
     matches = np.linalg.norm(colours - np.asarray(tone, dtype=float), axis=1) <= limit
     outlier = np.zeros(len(full), dtype=bool)
     for name in np.unique(full[allowed]):
@@ -513,6 +544,7 @@ def run(ctx, out):
     # is judged as part of that collar
     changes['recover_skin'] = recover_skin(labels, scores, colours, graph, skin_tone, skin_limit,
                                            config['recover_skin_score'], config['recover_skin_outlier_factor'])
+    changes['mirror_skin'] = mirror_skin(labels, centres, colours, skin_tone, skin_limit)
     changes['covered_leg_skin'] = covered_leg_skin(labels, centres, areas, crotch, height, config['leg_covered_share'])
     changes['coherent_limbs'] = coherent_limbs(labels, graph, areas, config['limb_island_fraction'])
     changes['sides'] = sides(labels, centres, graph, areas)
