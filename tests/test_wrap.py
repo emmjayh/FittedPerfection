@@ -54,11 +54,21 @@ def test_closest_point_on_triangles_matches_brute_force():
 
 
 def test_loose_cloth_wraps_in_and_never_goes_inside():
-    points, triangles = tube(0.2, 0.3, 0.7)
+    points, triangles = tube(0.15, 0.3, 0.7)
     out, record = run(points, triangles)
     middle = radius(out).reshape(31, 48)[8:23]
-    assert middle.max() < 0.16                                  # 10 cm of looseness comes in a long way
+    assert middle.max() < 0.13                                  # 5 cm of looseness comes in most of the way
     assert radius(out).min() > 0.1 + 0.5 * EASE and record['inside_at_end'] == 0
+
+
+def test_cloth_standing_well_off_the_body_hangs_and_keeps_its_width():
+    widths = {}
+    for cloth in (0.15, 0.2, 0.3):                              # 5, 10 and 20 cm off the body
+        points, triangles = tube(cloth, 0.3, 0.7)
+        widths[cloth] = np.median(radius(run(points, triangles)[0]).reshape(31, 48)[8:23]) - 0.1
+    assert widths[0.3] > 0.18                                   # a wide trouser leg stays wide
+    assert widths[0.15] < widths[0.2] < widths[0.3]             # and looser cloth always ends looser
+    assert widths[0.2] < 0.09                                   # in between it still comes in part of the way
 
 
 def test_relief_keeps_its_height():
@@ -97,7 +107,8 @@ def test_free_hanging_cloth_keeps_its_looseness():
     assert np.abs(radius(out) - 0.2).max() < 0.01
 
 
-@pytest.mark.parametrize('name', ['wrap_keep', 'wrap_bulk_radius_m', 'contact_rounds', 'arap_iterations'])
+@pytest.mark.parametrize('name', ['wrap_keep', 'wrap_bulk_radius_m', 'wrap_hanging_from_m', 'wrap_hanging_full_m',
+                                  'contact_rounds', 'arap_iterations'])
 def test_wrap_settings_exist(name):
     assert name in CONFIG
 

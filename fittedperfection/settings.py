@@ -89,6 +89,8 @@ _VALUES = {
         'contact_ease_of_height': 0.006,
         'wrap_keep': 0.3,                  # share of the cloth's overall looseness kept by the wrap (relief kept whole)
         'wrap_bulk_radius_m': 0.06,        # looseness is the height above the skin smoothed over this radius
+        'wrap_hanging_from_m': 0.06,       # cloth looser than this starts to hang rather than fit (keeps more)
+        'wrap_hanging_full_m': 0.16,       # ...and keeps all its looseness from this far off the body
         'wrap_target_weight': 0.5,
         'contact_weight': 5.0,
         'print_stiffness': 20.0,           # printed designs (logos, text) are this much stiffer in the wrap
@@ -109,8 +111,8 @@ _VALUES = {
         'stretch_limits': [3.0, 10.0],
         'synthetic_poses': {'elbow_degrees': [30, 60], 'knee_degrees': [15, 30]},
         'penetration_samples': 50000,      # cloth vertices sampled for inside-the-body shares
-        'coverage_reach_m': 0.06,          # cloth this close along a skin point's outward normal covers it
-        'coverage_source_reach_m': 0.15,   # ...on the source, whose cloth hangs looser around the donor
+        'coverage_reach_m': 0.15,          # cloth this close along a skin point's outward normal covers it (source
+                                           # and fit alike: hanging cloth keeps its looseness on the bodies too)
         'coverage_min_cos': 0.5,
     },
 }
