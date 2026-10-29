@@ -11,7 +11,7 @@ import zipfile
 
 import pytest
 
-from fittedperfection import app, config, viewer
+from fittedperfection import app, config, confirm, viewer
 
 
 def archive_bytes(names=('base.obj', 'texture_diffuse.png')):
@@ -20,6 +20,33 @@ def archive_bytes(names=('base.obj', 'texture_diffuse.png')):
         for name in names:
             bundle.writestr(name, b'v 0 0 0\n' if name.endswith('.obj') else b'png')
     return buffer.getvalue()
+
+
+FACING_PIPELINE = textwrap.dedent('''
+    import json, os, sys
+    from pathlib import Path
+    args = sys.argv[1:]
+    name = args[args.index('--name') + 1]
+    folder = Path(os.environ['FP_TEST_RUNS'])/name
+    (folder/'full').mkdir(parents=True, exist_ok=True)
+    (folder/'full'/'intake.json').write_text(json.dumps({'facing': {'toe_direction': '-Y', 'turn_about_z_degrees': 0,
+        'status': 'provisional', 'evidence': {'toe_over_heel_reach': [1.11, 1.07]}}}))
+    for view in ('review-front.png', 'review-side.png'):
+        (folder/'full'/view).write_bytes(b'png')
+    done = {'status': 'complete', 'seconds': 0.1}
+    stages = {n: done for n in ('intake', 'views', 'vision', 'label')}
+    answers = list(Path(os.environ['FP_TEST_CONFIRMATIONS']).glob('*.json'))
+    if not answers:
+        stages['bind'] = {'status': 'stopped', 'reason': 'FacingUnconfirmed: the shoes do not clearly confirm it'}
+        state = {'status': 'stopped_at_bind', 'stages': stages}
+    elif json.loads(answers[0].read_text())['facing'] == 'back':
+        stages['bind'] = {'status': 'stopped', 'reason': 'FacingRejected: you said the front view shows the back'}
+        state = {'status': 'stopped_at_bind', 'stages': stages}
+    else:
+        stages.update({n: done for n in ('bind', 'fit', 'review')})
+        state = {'status': 'complete', 'stages': stages}
+    (folder/'run.json').write_text(json.dumps(state))
+''')
 
 
 FAKE_PIPELINE = textwrap.dedent('''
@@ -154,3 +181,44 @@ def test_writes_only_from_the_viewer_page(server):
     code, answer = request(server, 'POST', '/api/uploads', data, page)
     assert code == 200 and answer['upload'] == hashlib.sha256(data).hexdigest()
     assert request(server, 'GET', '/api/jobs/current')[1] == {'state': 'idle'}
+
+
+@pytest.fixture
+def facing_place(place, tmp_path, monkeypatch):
+    answers = tmp_path/'confirmations'
+    monkeypatch.setattr(confirm, 'folder', lambda: answers)
+    monkeypatch.setenv('FP_TEST_CONFIRMATIONS', str(answers))
+    answers.mkdir()
+    script = tmp_path/'facing_pipeline.py'
+    script.write_text(FACING_PIPELINE)
+    return {**place, 'answers': answers, 'command': [sys.executable, str(script)]}
+
+
+def test_an_unclear_facing_asks_the_owner_and_their_answer_restarts_the_run(facing_place):
+    answer = store(archive_bytes())
+    jobs = app.Jobs(facing_place['command'])
+    with pytest.raises(app.AppError, match='nothing is waiting'):
+        jobs.confirm_facing('front')
+    jobs.start({'upload': answer['upload'], 'name': 'baggy'})
+    status = wait_until_done(jobs)
+    assert status['state'] == 'needs_facing' and status['facing']['renders'] == [
+        '/files/runs/baggy/full/review-front.png', '/files/runs/baggy/full/review-side.png']
+    with pytest.raises(app.AppError, match='answer'):
+        jobs.confirm_facing('sideways')
+    assert not list(facing_place['answers'].iterdir())
+    jobs.confirm_facing('front')
+    status = wait_until_done(jobs)
+    assert status['state'] == 'complete'
+    saved = json.loads((facing_place['answers']/f"{answer['upload']}.json").read_text())
+    assert saved['facing'] == 'front' and saved['by'] == 'owner'
+
+
+def test_a_back_answer_is_recorded_and_the_run_stops_saying_so(facing_place):
+    answer = store(archive_bytes())
+    jobs = app.Jobs(facing_place['command'])
+    jobs.start({'upload': answer['upload'], 'name': 'baggy'})
+    wait_until_done(jobs)
+    jobs.confirm_facing('back')
+    status = wait_until_done(jobs)
+    assert status['state'] == 'stopped' and status['facing'] is None
+    assert any('FacingRejected' in (s.get('reason') or '') for s in status['stages'])

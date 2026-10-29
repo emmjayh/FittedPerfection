@@ -33,3 +33,6 @@ assets/bodies-v1/logs/
 
 # Archives dropped into the app (kept by hash)
 uploads/
+
+# Owner answers about local garments (kept by garment hash, like the archives they answer)
+confirmations/

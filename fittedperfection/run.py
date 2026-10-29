@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from . import VERSION, config, live, models, seal, settings
+from . import VERSION, config, confirm, live, models, seal, settings
 from .hashing import file_sha256, folder_sha256, json_sha256
 
 RECORD = 'stage.json'
@@ -53,6 +53,7 @@ class Stage:
     garment: bool = False
     bodies: bool = False
     sealed: bool = False        # run with the network and other programs shut off
+    confirmations: bool = False # reads the owner's confirmations for this garment (confirm.py)
 
 
 class RunError(RuntimeError):
@@ -178,6 +179,9 @@ class Run:
             record['garment_sha256'] = self.state['garment_sha256']
         if stage.bodies:
             record['bodies'] = {body: file_sha256(config.body_file(body)) for body in config.BODIES}
+        if stage.confirmations and confirm.file_sha256(self.state['garment_sha256']):
+            # only when one exists, so outfits nobody had to confirm keep their records
+            record['confirmation_sha256'] = confirm.file_sha256(self.state['garment_sha256'])
         return record
 
     def _why_rerun(self, stage, inputs_sha):

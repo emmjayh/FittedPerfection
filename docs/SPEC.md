@@ -26,6 +26,14 @@ These decisions override the original text below where they differ.
   MPFB default rig, A-pose, one shared topology.
 - **Labels are checked visually only.** The step 2 regression check against the
   prototype's labels is dropped.
+- **An unclear facing asks the owner** (§5.1's "If it's ambiguous, stop" becomes "stop and ask"). When
+  intake's facing is provisional and the footwear can't confirm it (bluetiebaggypants: sneakers under
+  pooled trousers, soles reaching as far behind the ankle as in front), bind stops and the app shows
+  intake's front and side views: "Is this the outfit's front?" The answer is recorded by garment
+  (`confirmations/<sha256>.json`, or `confirm-facing NAME --front|--back` from a terminal) and counts as
+  evidence. Without one the outfit is refused as before; the fitter never guesses. Shoes that point away
+  from the front still refuse outright. A "back" answer is recorded, but turning an outfit round isn't
+  supported yet.
 - **A garment part in the skin tone** (a white top on a white mannequin) can't be told from skin
   by colour. Skin recovery never takes faces from it. A skin face whose mirror image (the same
   spot on the other side) lies in such a part takes that part, sides swapped, since mannequins are

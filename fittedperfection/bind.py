@@ -12,7 +12,8 @@ From the cage and its labels (canonical frame: Z up, front -Y, own left +X):
   or outside;
 - feet: from the footwear only; toe direction from the sole's long axis, signed by
   toe reach vs heel reach from the lower-shin leg centre. This confirms a provisional
-  intake facing, or refuses;
+  intake facing; when it cannot, the owner's recorded answer does (confirm.py), or bind
+  stops and asks;
 - knees: the narrowest leg section near the expected knee height, accepted only when
   that minimum is clear and both legs agree (cuffs and frills can fake one); otherwise
   none. The method is recorded;
@@ -23,14 +24,22 @@ import json
 import numpy as np
 from PIL import Image, ImageDraw
 
-from . import cameras, meshes, settings
+from . import cameras, confirm, meshes, settings
 from .gltf import read_textured_mesh
 
-CODE = ('bind.py', 'meshes.py', 'cameras.py', 'gltf.py')
+CODE = ('bind.py', 'meshes.py', 'cameras.py', 'gltf.py', 'confirm.py')
 
 
 class BindError(ValueError):
     pass
+
+
+class FacingUnconfirmed(BindError):
+    """The facing is provisional and nothing confirms it: the owner is asked."""
+
+
+class FacingRejected(BindError):
+    """The owner said the front view shows the outfit's back."""
 
 
 def _r(value, places=4):
@@ -144,11 +153,25 @@ def foot(side, labels, centres, areas, height, config):
             'faces': int(shoe.sum())}
 
 
-def check_facing(feet, intake_status, config):
-    """Toes must point to -Y. A provisional intake facing needs clear shoe evidence here, or is refused."""
+def owner_answer(why, intake_facing, confirmation, evidence):
+    """A provisional facing the footwear cannot confirm: the owner's recorded answer decides, or bind stops and
+    asks (FacingUnconfirmed). The fitter never guesses."""
+    if confirmation and intake_facing and confirm.matches(confirmation, intake_facing):
+        if confirmation['facing'] == 'back':
+            raise FacingRejected('you said the front view shows the back; turning an outfit round is not supported '
+                                 'yet; refusing')
+        return {'status': 'confirmed by the owner', 'confirmation': confirmation, **evidence}
+    raise FacingUnconfirmed(f'{why}; refusing until the owner confirms the front (the app asks, or '
+                            '`python -m fittedperfection confirm-facing NAME --front`)')
+
+
+def check_facing(feet, intake_status, config, intake_facing=None, confirmation=None):
+    """Toes must point to -Y. A provisional intake facing needs clear shoe evidence here, or the owner's
+    confirmation (confirm.py), or is refused."""
     if not feet:
         if intake_status == 'provisional':
-            raise BindError('the facing was provisional at intake and there is no footwear to confirm it; refusing')
+            return owner_answer('the facing was provisional at intake and there is no footwear to confirm it',
+                                intake_facing, confirmation, {'evidence': 'no footwear'})
         return {'status': intake_status, 'evidence': 'no footwear; facing as found at intake'}
     dots = {side: float(np.dot(f['toe_direction'][:2], [0.0, -1.0])) for side, f in feet.items()}
     ratios = {side: f['toe_over_heel_reach'] for side, f in feet.items()}
@@ -156,7 +179,8 @@ def check_facing(feet, intake_status, config):
         raise BindError(f'the shoes do not point to the front ({dots}); the facing is ambiguous, refusing')
     if min(ratios.values()) < config['toe_over_heel_min']:
         if intake_status == 'provisional':
-            raise BindError(f'the shoes do not clearly confirm the provisional facing (toe/heel {ratios}); refusing')
+            return owner_answer(f'the shoes do not clearly confirm the provisional facing (toe/heel {ratios})',
+                                intake_facing, confirmation, {'shoe_toe_forward': dots, 'shoe_toe_over_heel': ratios})
         return {'status': 'confirmed at intake', 'shoe_toe_forward': dots, 'shoe_toe_over_heel': ratios}
     return {'status': 'confirmed by footwear' if intake_status == 'provisional' else 'confirmed at intake and by footwear',
             'shoe_toe_forward': dots, 'shoe_toe_over_heel': ratios}
@@ -267,7 +291,8 @@ def run(ctx, out):
     if not (legs['left'] and legs['right']):
         raise BindError('could not find both legs below the crotch')
     feet = {side: f for side in ('left', 'right') if (f := foot(side, labels, centres, areas, height, config))}
-    facing = check_facing(feet, intake_record['facing']['status'], config)
+    facing = check_facing(feet, intake_record['facing']['status'], config, intake_record['facing'],
+                          confirm.read(ctx.run.state['garment_sha256']))
     knees = {side: knee(side, labels, centres, areas, crotch_record['height_m'], height, config)
              for side in ('left', 'right')}
     found = [k['height_m'] for k in knees.values()]

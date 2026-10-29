@@ -44,3 +44,30 @@ def test_sections_skip_gaps():
     points = np.array([[0, 0, z] for z in (0.0, 0.01, 0.2, 0.21)], dtype=float)
     chain = bind.sections(points, np.ones(4), np.zeros(3), np.array([0.0, 0.0, 1.0]), 0.05)
     assert len(chain) == 2 and np.isclose(chain[0][2], 0.005) and np.isclose(chain[1][2], 0.205)
+
+
+INTAKE_FACING = {'toe_direction': '-Y', 'turn_about_z_degrees': 0, 'status': 'provisional'}
+
+
+def owner(answer, turn=0):
+    return {'facing': answer, 'by': 'owner', 'shown': {'toe_direction': '-Y', 'turn_about_z_degrees': turn}}
+
+
+def test_weak_shoes_ask_the_owner_and_only_a_matching_answer_decides():
+    weak = feet(ratio=1.12)
+    with pytest.raises(bind.FacingUnconfirmed, match='confirm-facing'):
+        bind.check_facing(weak, 'provisional', CONFIG, INTAKE_FACING, None)
+    record = bind.check_facing(weak, 'provisional', CONFIG, INTAKE_FACING, owner('front'))
+    assert record['status'] == 'confirmed by the owner' and record['confirmation']['facing'] == 'front'
+    with pytest.raises(bind.FacingRejected, match='shows the back'):
+        bind.check_facing(weak, 'provisional', CONFIG, INTAKE_FACING, owner('back'))
+    with pytest.raises(bind.FacingUnconfirmed):                       # answered about a different turn
+        bind.check_facing(weak, 'provisional', CONFIG, INTAKE_FACING, owner('front', turn=180))
+    assert bind.check_facing({}, 'provisional', CONFIG, INTAKE_FACING, owner('front'))['status'] == \
+        'confirmed by the owner'
+
+
+def test_an_answer_never_overrides_shoes_that_contradict_the_front():
+    with pytest.raises(bind.BindError, match='do not point to the front'):
+        bind.check_facing(feet(direction=(0.0, 1.0)), 'provisional', CONFIG, INTAKE_FACING, owner('front'))
+    assert bind.check_facing(feet(), 'provisional', CONFIG, INTAKE_FACING, None)['status'] == 'confirmed by footwear'
