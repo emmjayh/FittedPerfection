@@ -10,7 +10,8 @@ computer only (127.0.0.1):
 in them (fit/ and each fit.stale-N/), and the four bodies.
 
 The app layer (fittedperfection/app.py): POST /api/uploads (a dropped archive), /api/jobs (start a fit),
-/api/jobs/approve (allow the spending it asked for), /api/jobs/cancel; GET /api/jobs/current and /api/outfits.
+/api/jobs/approve (allow the spending it asked for), /api/jobs/confirm-facing (the owner says which way an outfit
+faces), /api/jobs/cancel; GET /api/jobs/current and /api/outfits.
 Writes are accepted only from this viewer's own page (its Origin plus a custom header).
 """
 import json
@@ -159,6 +160,8 @@ class ViewerHandler(SimpleHTTPRequestHandler):
                 return self._json(JOBS.start(request))
             if path == '/api/jobs/approve':
                 return self._json(JOBS.approve(wonder=bool(request.get('wonder'))))
+            if path == '/api/jobs/confirm-facing':
+                return self._json(JOBS.confirm_facing(str(request.get('answer', ''))))
             if path == '/api/jobs/cancel':
                 return self._json(JOBS.cancel())
         except app.AppError as refused:
@@ -178,7 +181,15 @@ class ViewerHandler(SimpleHTTPRequestHandler):
         if path.startswith('/files/'):
             share, _, relative = path[len('/files/'):].partition('/')
             return self._send_shared(share, relative)
+        self._page_file = True
         return super().do_GET()
+
+    def end_headers(self):
+        # the page's own files: the browser checks for a newer copy each time, so an updated viewer never runs
+        # yesterday's script
+        if getattr(self, '_page_file', False):
+            self.send_header('Cache-Control', 'no-cache')
+        super().end_headers()
 
 
 def _exclusive(sock):

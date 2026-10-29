@@ -157,3 +157,22 @@ def test_sealed_stage_cannot_use_network_or_programs(runs, garment):
 def test_unknown_stage_names_are_refused(runs, garment):
     with pytest.raises(RunError, match='unknown stage'):
         Run(runs/'r', pipeline()).execute(garment, 'r', rerun_from='nope')
+
+
+def test_an_owner_confirmation_reruns_only_the_stages_that_read_it(runs, garment):
+    from fittedperfection import confirm
+    from fittedperfection.hashing import file_sha256
+    stages = (Stage('a', 'a', writes('a', 'a'), garment=True),
+              Stage('b', 'b', appends('b', 'a'), needs=('a',), confirmations=True))
+    Run(runs/'r', stages).execute(garment, 'r')
+    assert 'confirmation_sha256' not in json.loads((runs/'r/b/stage.json').read_text())['inputs']
+    ran.clear()
+    path = confirm.path_for(file_sha256(garment))
+    path.parent.mkdir()
+    path.write_text('{"facing": "front"}')
+    Run(runs/'r', stages).execute(garment, 'r')
+    assert ran == ['b']
+    ran.clear()
+    path.unlink()                                                   # withdrawn: back to the record without it
+    Run(runs/'r', stages).execute(garment, 'r')
+    assert ran == ['b']

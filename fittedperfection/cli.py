@@ -40,6 +40,23 @@ def cmd_run(args):
     return 0
 
 
+def cmd_confirm_facing(args):
+    """The owner's answer when an outfit's facing is provisional and its shoes cannot confirm it."""
+    from . import confirm
+    folder = config.runs_folder()/args.name
+    state = json.loads((folder/'run.json').read_text(encoding='utf-8'))
+    intake_folder = folder/'full'
+    shown = confirm.shown(intake_folder)
+    print(f'[fp] {args.name}: facing {shown["status"]} at intake, toes {shown["toe_direction"]}, '
+          f'toe/heel reach {shown["toe_over_heel_reach"]}')
+    for name in confirm.RENDERS:
+        print(f'[fp]   look at {intake_folder/name}')
+    answer = 'front' if args.front else 'back'
+    confirm.write_facing(state['garment_sha256'], answer, intake_folder)
+    print(f'[fp] recorded: the front view shows the {answer}. Rerun: python -m fittedperfection run {args.name}')
+    return 0
+
+
 def cmd_status(args):
     from .stages import NAMES
     state = json.loads((config.runs_folder()/args.name/'run.json').read_text(encoding='utf-8'))
@@ -114,6 +131,14 @@ def build_parser():
     status = commands.add_parser('status', help='show one run')
     status.add_argument('name')
     status.set_defaults(handler=cmd_status)
+
+    facing = commands.add_parser('confirm-facing',
+                                 help="record your answer when a run's shoes cannot show which way it faces")
+    facing.add_argument('name')
+    answer = facing.add_mutually_exclusive_group(required=True)
+    answer.add_argument('--front', action='store_true', help="intake's front view shows the outfit's front")
+    answer.add_argument('--back', action='store_true', help="intake's front view shows the outfit's back")
+    facing.set_defaults(handler=cmd_confirm_facing)
 
     commands.add_parser('outfits', help='list the test outfits').set_defaults(handler=cmd_outfits)
     commands.add_parser('freeze', help='make a frozen copy of the committed code').set_defaults(handler=cmd_freeze)

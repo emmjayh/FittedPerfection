@@ -1,5 +1,6 @@
 // "Fit a new outfit": drop an archive (or pick a listed one), follow the run stage by stage, approve spending
-// only when asked, and show the result in the viewer when it completes (fittedperfection/app.py).
+// only when asked, answer which way an outfit faces when its shoes cannot show it, and show the result in the
+// viewer when it completes (fittedperfection/app.py).
 
 const el = (id) => document.getElementById(id);
 const HEADERS = { 'X-FittedPerfection': '1' };            // the server refuses writes without it
@@ -38,7 +39,10 @@ function describe(stage) {
     return `running ${since}s`;
   }
   if (stage.status === 'complete') return `done ${stage.seconds?.toFixed(1) ?? ''}s`;
-  if (stage.status === 'stopped') return stage.needs_usd != null ? 'waiting for your OK' : 'stopped';
+  if (stage.status === 'stopped') {
+    if (stage.needs_usd != null) return 'waiting for your OK';
+    return (stage.reason || '').startsWith('FacingUnconfirmed') ? 'waiting for your answer' : 'stopped';
+  }
   return 'waiting';
 }
 
@@ -69,7 +73,24 @@ function show(status) {
       ' Nothing has been sent. Approve to go ahead.';
     el('wonder-usd').textContent = status.wonder_usd.toFixed(2);
   }
+  const asking = el('facing').hidden && status.state === 'needs_facing';
+  el('facing').hidden = status.state !== 'needs_facing';
+  const bringIntoView = () => el('facing').scrollIntoView({ block: 'start' });   // a question the owner must see
+  if (status.state === 'needs_facing') {
+    const reach = (status.facing.toe_over_heel_reach || []).join(' and ');
+    el('facing-text').textContent = `The shoes of "${status.name}" don't show which way it faces` +
+      (reach ? ` (toes reach only ${reach}× as far as the heels).` : '.') + ' These are its front and side views.';
+    el('facing-renders').replaceChildren(...status.facing.renders.map((url) => {
+      const image = document.createElement('img');
+      image.src = url;
+      image.alt = url.endsWith('front.png') ? 'front view' : 'side view';
+      if (asking) image.addEventListener('load', bringIntoView);    // again once the pictures take their space
+      return image;
+    }));
+    if (asking) bringIntoView();
+  }
   const words = { running: `Fitting "${status.name}"…`, needs_spend: 'Waiting for your approval.',
+    needs_facing: 'Waiting for your answer: which way does it face?',
     complete: `"${status.name}" is fitted. It is shown in the viewer.`, cancelled: 'Cancelled.',
     stopped: `Stopped: ${status.stages.find((s) => s.status === 'stopped')?.reason || 'see details'}` };
   note(words[status.state] || status.state);
@@ -130,6 +151,14 @@ export async function initApp({ onComplete }) {
     } catch (error) { note(error.message); }
   });
   el('spend-decline').addEventListener('click', () => { el('spend').hidden = true; note('Not approved. Nothing was sent.'); });
+  for (const [id, answer] of [['facing-front', 'front'], ['facing-back', 'back']]) {
+    el(id).addEventListener('click', async () => {
+      try {
+        show(await post('/api/jobs/confirm-facing', JSON.stringify({ answer }), { 'Content-Type': 'application/json' }));
+        follow(onComplete);
+      } catch (error) { note(error.message); }
+    });
+  }
   el('cancel-fit').addEventListener('click', async () => {
     try { show(await post('/api/jobs/cancel', '{}', { 'Content-Type': 'application/json' })); }
     catch (error) { note(error.message); }

@@ -4,6 +4,9 @@ Nothing here fits anything. An upload is checked (its listing only, never unpack
 the ordinary command, `python -m fittedperfection run ARCHIVE --name NAME --allow-spend X`, in its own process,
 so the fit keeps its seal and stage records exactly as from a terminal. One job at a time.
 
+Facing: when bind cannot tell which way an outfit faces (FacingUnconfirmed), the page shows intake's renders and
+asks the owner; the answer is recorded (confirm.py) and the same run restarts from bind.
+
 Spending: a job always starts with nothing allowed. Vision then either finds every SAM reply cached (free) or
 stops before sending anything, recording what it would need (`needs_usd` in run.json). The page shows that,
 and only an explicit approval restarts the same run with that allowance (finished stages are reused).
@@ -17,7 +20,7 @@ import threading
 import zipfile
 from pathlib import Path
 
-from . import config, intake
+from . import config, confirm, intake
 from .stages import NAMES
 
 MAX_UPLOAD_BYTES = 500_000_000
@@ -143,6 +146,20 @@ class Jobs:
                            'outfit': self._listed_name(job['sha']), 'name': job['name'], 'test_fit': job['test_fit'],
                            'allow_spend_usd': allowance, 'wonder': wonder})
 
+    def confirm_facing(self, answer):
+        """Record the owner's answer about the facing, then restart the stopped job (bind onward reruns)."""
+        status = self.status()
+        if status['state'] != 'needs_facing':
+            raise AppError('nothing is waiting for a facing answer')
+        job = self.job
+        try:
+            confirm.write_facing(job['sha'], answer, config.runs_folder()/job['name']/'full')
+        except confirm.ConfirmError as refused:
+            raise AppError(str(refused)) from None
+        return self.start({'upload': job['sha'] if Path(job['archive']).parent == uploads_folder() else None,
+                           'outfit': self._listed_name(job['sha']), 'name': job['name'], 'test_fit': job['test_fit'],
+                           'allow_spend_usd': job['allowance'], 'wonder': job['wonder']})
+
     @staticmethod
     def _listed_name(sha):
         return next((n for n, e in config.outfits().items() if e['sha256'] == sha), None)
@@ -181,6 +198,8 @@ class Jobs:
             state = 'complete'
         elif stopped and stopped.get('needs_usd') is not None:
             state = 'needs_spend'
+        elif stopped and stopped.get('reason', '').startswith('FacingUnconfirmed'):
+            state = 'needs_facing'
         else:
             state = 'stopped'
         requests = re.search(r'needs (\d+) new SAM requests', (stopped or {}).get('reason', ''))
@@ -188,7 +207,13 @@ class Jobs:
             if job['log'].is_file() else []
         pictures = {stage: f'/files/runs/{job["name"]}/{path}' for stage, path in PICTURES.items()
                     if (folder/path).is_file()}
+        facing = None
+        if state == 'needs_facing':
+            facing = {'renders': [f'/files/runs/{job["name"]}/full/{n}' for n in confirm.RENDERS
+                                  if (folder/'full'/n).is_file()],
+                      'toe_over_heel_reach': run['stages'].get('intake', {}).get('details', {}).get('toe_over_heel_reach')}
         return {'state': state, 'name': job['name'], 'allowance_usd': job['allowance'], 'stages': stages,
+                'facing': facing,
                 'needs_usd': (stopped or {}).get('needs_usd'),
                 'needs_requests': int(requests.group(1)) if requests else None,
                 'wonder_usd': WONDER_ALLOWANCE_USD, 'held_out': job['test_fit'], 'log': log, 'pictures': pictures}

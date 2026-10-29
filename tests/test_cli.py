@@ -53,3 +53,17 @@ def test_outfits_listing(project, capsys):
     assert main(['outfits']) == 0
     out = capsys.readouterr().out
     assert 'dev' in out and 'moon' in out and 'test-fits' in out
+
+
+def test_confirm_facing_records_the_answer_for_the_runs_garment(home, capsys):
+    folder = home/'runs'/'baggy'
+    (folder/'full').mkdir(parents=True)
+    (folder/'run.json').write_text(json.dumps({'garment_sha256': 'f00d'}))
+    (folder/'full'/'intake.json').write_text(json.dumps({'facing': {
+        'toe_direction': '-Y', 'turn_about_z_degrees': 0, 'status': 'provisional',
+        'evidence': {'toe_over_heel_reach': [1.11, 1.07]}}}))
+    assert main(['confirm-facing', 'baggy', '--front']) == 0
+    assert json.loads((home/'confirmations'/'f00d.json').read_text())['facing'] == 'front'
+    assert 'review-front.png' in capsys.readouterr().out
+    with pytest.raises(SystemExit):
+        main(['confirm-facing', 'baggy'])                             # an answer is required

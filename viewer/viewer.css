@@ -65,8 +65,9 @@ button.active { border-color: var(--accent); color: var(--accent); }
 }
 
 @media (max-width: 1000px) {
-  body { grid-template-columns: 210px 1fr; }
-  aside { display: none; }
+  /* narrow windows: the side panel (fitting, approvals, questions) moves below the viewer, never away */
+  body { grid-template-columns: 210px 1fr; grid-template-rows: 100vh auto; height: auto; overflow-y: auto; }
+  aside { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--edge); overflow: visible; }
 }
 
 #source figure { margin: 0 0 10px; }
@@ -102,5 +103,7 @@ label.tick { display: flex; gap: 6px; align-items: center; font-size: 12px; }
 .spend { border: 1px solid var(--warn); border-radius: 8px; padding: 10px; margin: 8px 0; font-size: 12px; }
 .spend p { margin: 0 0 8px; }
 .spend .row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.facing-renders { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.facing-renders img { width: 100%; border-radius: 6px; background: #333; }
 .job-pictures img { width: 100%; margin-top: 6px; border: 1px solid var(--edge); border-radius: 6px; }
 #job-log { font-size: 10px; color: var(--quiet); white-space: pre-wrap; max-height: 200px; overflow: auto; }

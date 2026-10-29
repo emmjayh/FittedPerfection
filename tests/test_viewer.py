@@ -60,6 +60,17 @@ def test_server_stays_inside_its_folders(project):
         server.server_close()
 
 
+def test_the_page_files_are_rechecked_each_time(project):
+    (project/'viewer'/'app.js').write_text('// page script')
+    server = viewer.ViewerServer(('127.0.0.1', 0), viewer.ViewerHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        response = urllib.request.urlopen(f'http://127.0.0.1:{server.server_address[1]}/app.js')
+        assert response.read() == b'// page script' and response.headers['Cache-Control'] == 'no-cache'
+    finally:
+        server.shutdown()
+        server.server_close()
+
 
 @pytest.mark.parametrize('holder_address', ['127.0.0.1', '0.0.0.0'])
 def test_a_port_held_by_another_program_is_refused(project, holder_address):
