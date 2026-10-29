@@ -191,9 +191,14 @@ def unpose(points, regions, built, config_fit, adjacency=None, band=None):
     return np.einsum('pij,pj->pi', blended[:, :3, :3], points) + blended[:, :3, 3]
 
 
-def transfer(points, regions, donor_rest, target_rest, body, crotch, config_fit, adjacency=None, band=None):
-    """Step C: donor-rest cage points -> a target body, by the smooth field of exact body vertex moves."""
+def transfer(points, regions, donor_rest, target_rest, body, crotch, config_fit, adjacency=None, band=None, shod=()):
+    """Step C: donor-rest cage points -> a target body, by the smooth field of exact body vertex moves.
+    shod: sides wearing footwear. There the foot is inside the shoe, which is placed on its own (Step E), so the
+    leg's cloth takes its moves from the leg above the foot: a trouser hem around a shoe never follows the
+    donor's longer toes back over the cuff it covered."""
     sets = donor_region_sets(body, donor_rest, crotch)
+    for side in shod:
+        sets[f'leg.{side}'] = np.setdiff1d(sets[f'leg.{side}'], shoes.foot_vertices(body, side))
     height = float(donor_rest[:, 2].max() - donor_rest[:, 2].min())
     index, weight = gaussian_blend(points, regions, donor_rest, sets, config_fit['transfer_neighbours'],
                                    config_fit['transfer_sigma_of_nearest'], config_fit['transfer_sigma_of_height'] * height)
@@ -361,7 +366,7 @@ def run(ctx, out):
         target_body = bodies.load(target)
         target_rest = target_body.positions
         fitted = transfer(rest_points, regions, built['rest'], target_rest, body, donor_crotch, config_fit,
-                          adjacency, band)
+                          adjacency, band, shod=tuple(shoe_parts))
         field_placed = fitted.copy()                                  # Step C before rigid copies (boot shafts)
         fitted, rigid_transfer = place_rigid(rest_points, fitted, groups, config_fit['rigid_max_rotation_degrees'])
         shoe_record = {}
