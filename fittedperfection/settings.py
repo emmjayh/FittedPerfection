@@ -97,6 +97,7 @@ _VALUES = {
         'shoe_shaft_above_ankle_m': 0.03,  # footwear higher than this above the ankle is a shaft (wrapped, not rigid)
         'shoe_shaft_min_m': 0.15,          # ...when the footwear rises at least this far above that line (a boot)
         'shoe_shaft_blend_m': 0.10,        # a shaft eases from the shoe's placement to the leg's over this height
+        'shoe_join_blend_m': 0.08,         # cloth touching a shoe moves with it, fading out over this distance
         'shoe_sole_search_m': 0.08,        # the sole's edge is looked for this high from the bottom of the shoe
         'ghost_grid_m': 0.005,             # raster of the shoe height map used to hide covered body faces
         'rotation_smoothing_iterations': 3,  # smoothing of the per-vertex rotation field carrying full-res detail

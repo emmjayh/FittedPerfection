@@ -15,6 +15,7 @@
 numpy/scipy only (sealed).
 """
 import numpy as np
+from scipy.spatial import cKDTree
 from scipy import ndimage
 
 from . import body as bodies
@@ -91,6 +92,18 @@ def placement(shoe_points, donor_foot, target_foot, thickness, source_foot_lengt
 def shaft(shoe_vertices, points, ankle_height):
     """Shoe points above the ankle line (boot shafts): cloth for the wrap rather than part of the rigid shoe."""
     return shoe_vertices[points[shoe_vertices, 2] > ankle_height]
+
+
+def join(points, cloth, footwear, blend):
+    """Cloth that meets a shoe (a stocking ending inside it, a trouser cuff over it): the cloth points within
+    `blend` of the footwear, each one's nearest footwear point, and a weight from 1 (touching) to 0 (at `blend`)."""
+    cloth = np.setdiff1d(cloth, footwear)
+    if not len(footwear) or not len(cloth):
+        return np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.int64), np.zeros(0)
+    distance, nearest = cKDTree(points[footwear]).query(points[cloth])
+    near = distance < blend
+    weight = 1.0 - distance[near] / blend
+    return cloth[near], footwear[nearest[near]], weight * weight * (3 - 2 * weight)
 
 
 def hidden_faces(body_positions, body_triangles, shoe_points, shoe_triangles, grid):

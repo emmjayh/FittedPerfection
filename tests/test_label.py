@@ -130,3 +130,30 @@ def test_skin_and_footwear_are_never_prints():
     colours = np.full((80, 3), 220.0)
     colours[10:20] = colours[50:60] = 20.0
     assert label.detect_prints(labels, colours, chain(80), 60.0, 6, 120.0)[0].sum() == 0
+
+
+def test_a_garment_part_in_the_skin_tone_is_skin_coloured_and_not_recovered():
+    labels = np.array(['skin'] + ['torso'] * 60 + ['collar'] * 60, dtype=object)
+    colours = np.array([[218, 218, 218]] * 61 + [[30, 30, 120]] * 60, dtype=float)   # white top, dark collar
+    assert label.skin_coloured_parts(labels, colours, [218, 218, 218], 25.0) == {'torso'}
+    scores = np.zeros((len(labels), len(label.CLASSES)))
+    scores[1:61, SKIN_CLASS] = 0.9                                            # SAM calls the white top skin
+    assert label.recover_skin(labels, scores, colours, chain(len(labels)), [218, 218, 218], 25.0, 0.35, 2.0) == 0
+
+
+def test_skin_mirrored_onto_a_skin_coloured_part_takes_that_part_with_sides_swapped():
+    # a white top on a white mannequin: the left back is skin, its mirror on the right is the top
+    centres = np.array([[0.1, 0.0, 1.4], [-0.1, 0.0, 1.4], [0.1, 0.0, 0.9], [-0.1, 0.0, 0.9]] +
+                       [[0.0, 0.1, 1.0 + 0.005 * i] for i in range(60)])
+    labels = np.array(['skin', 'torso', 'skin', 'skin'] + ['torso'] * 60, dtype=object)
+    colours = np.full((len(labels), 3), 218.0)
+    changed = label.mirror_skin(labels, centres, colours, [218, 218, 218], 25.0)
+    assert changed == 1 and labels[0] == 'torso' and labels[2] == 'skin' and labels[3] == 'skin'
+
+
+def test_mirroring_swaps_the_side_and_skips_outfits_without_a_skin_coloured_part():
+    centres = np.array([[0.1, 0.0, 1.4], [-0.1, 0.0, 1.4]] + [[0.0, 0.1, 1.0 + 0.005 * i] for i in range(60)])
+    labels = np.array(['skin', 'sleeve.right'] + ['sleeve.right'] * 60, dtype=object)
+    colours = np.full((len(labels), 3), 218.0)
+    assert label.mirror_skin(labels.copy(), centres, colours * 0.2, [218, 218, 218], 25.0) == 0
+    assert label.mirror_skin(labels, centres, colours, [218, 218, 218], 25.0) == 1 and labels[0] == 'sleeve.left'

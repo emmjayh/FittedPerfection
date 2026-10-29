@@ -26,6 +26,10 @@ These decisions override the original text below where they differ.
   MPFB default rig, A-pose, one shared topology.
 - **Labels are checked visually only.** The step 2 regression check against the
   prototype's labels is dropped.
+- **A garment part in the skin tone** (a white top on a white mannequin) can't be told from skin
+  by colour. Skin recovery never takes faces from it. A skin face whose mirror image (the same
+  spot on the other side) lies in such a part takes that part, sides swapped, since mannequins are
+  symmetric.
 - **Hackathon use only.** Commercial licence checks (§4a) are out of scope for now.
 - **Donor leg length is clamped to 0.85–1.6, not 0.85–1.2** (§5.6 A). Generator figures often
   have much longer legs than the MPFB bodies (2 of 5 dev outfits need 1.35–1.57). At 1.2 the
@@ -76,6 +80,9 @@ These decisions override the original text below where they differ.
   - **Boot shafts:** footwear rising at least 15 cm above the ankle line follows the leg rather
     than the rigid shoe. In the wrap it keeps its looseness and is stiff, like a print, so a boot
     keeps its structured shape; contact still keeps the calf inside. Lower shoes stay fully rigid.
+  - **Cloth meeting a shoe** (a stocking ending inside it, a trouser cuff over it) moves with the
+    shoe where they touch, fading back to its own placement within 8 cm (`shoe_join_blend_m`).
+    The shoe goes to the foot and the cloth to the leg; without this a gap opens between them.
     Wrapping shafts 70% in like cloth made moonshorts' boots look melted.
   - **Shoes fused in the source:** faces joining the left and right shoe (the generator fuses shoes
     that touch) are dropped. Each shoe goes to its own foot, so those faces stretched into a bar

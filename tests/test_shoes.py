@@ -97,3 +97,13 @@ def test_ghost_removal_hides_what_the_shoe_covers_and_keeps_the_shin():
     body_triangles = np.arange(len(body_points)).reshape(-1, 3)
     hidden = set(shoes.hidden_faces(body_points, body_triangles, points, triangles, 0.005).tolist())
     assert hidden == {0, 1}
+
+
+def test_cloth_touching_a_shoe_joins_it_fading_with_distance():
+    points = np.array([[0, 0, 0.10], [0, 0, 0.12], [0, 0, 0.16], [0, 0, 0.30], [0, 0, 0.11]], dtype=float)
+    footwear = np.array([0])
+    cloth = np.array([0, 1, 2, 3, 4])                      # the footwear point itself is never cloth
+    join, nearest, weight = shoes.join(points, cloth, footwear, 0.08)
+    assert list(join) == [1, 2, 4] and (nearest == 0).all()
+    assert weight[2] > weight[0] > weight[1] > 0           # 1 cm, 2 cm, 6 cm from the shoe
+    assert shoes.join(points, cloth, np.zeros(0, dtype=np.int64), 0.08)[0].size == 0
