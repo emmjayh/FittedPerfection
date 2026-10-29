@@ -83,8 +83,13 @@ These decisions override the original text below where they differ.
   essentially as a wrap, but without losing the entire shape"). Height above the skin splits into
   bulk (smoothed looseness) and relief (folds, pockets, ruffles). The wrap keeps all the relief and
   30% of the looseness (`wrap_keep`), never closer than ease. Skirts, hanging cloth, and cloth next to
-  the head or hands keep their looseness. One ARAP solve balances the shape of the Step C result,
-  the wrap targets, point-and-triangle contact springs and rigid anchors.
+  the head or hands keep their looseness. Cloth standing well off the body hangs rather than fits
+  (wide trouser legs, puff sleeves, a flared peplum): from 6 cm of looseness it keeps more, and all of
+  it from 16 cm (`wrap_hanging_from_m`, `wrap_hanging_full_m`), so a wide cut stays wide while snug
+  cloth still wraps close. One ARAP solve balances the shape of the Step C result, the wrap targets,
+  point-and-triangle contact springs and rigid anchors.
+  The audit's coverage check searches the same 15 cm on the fit as on the source, since hanging cloth
+  keeps its looseness on the bodies too.
 - **Step E shoes, no body warping** (owner's decisions, replacing §7.1's heel flattening):
   - **Size:** each shoe is scaled uniformly to each body's foot. The foot it was made for is
     taken as 15% of the source figure's height; the donor's foot gives where it sits.

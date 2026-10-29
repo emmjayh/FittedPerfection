@@ -136,10 +136,9 @@ def audit(run_folder, target, garment, vertex_labels, donor_posed, config_audit,
         before = np.zeros(len(r), dtype=bool)
         if fabric.any():
             now[r] = covered(b.positions[where], skin.vertex_normals[where], cKDTree(points[fabric]), points[fabric],
-                             reach, min_cos)
-            # the source hangs looser than the wrapped fit, so it is searched further out
+                             reach, min_cos, k=48)
             before[r] = covered(donor_posed[where], donor_skin.vertex_normals[where], cKDTree(garment[fabric]),
-                                garment[fabric], config_audit['coverage_source_reach_m'], min_cos, k=48)
+                                garment[fabric], reach, min_cos, k=48)
         source = int((before & r).sum())
         record['coverage'][str(region)] = {
             'covered_in_source': round(source / max(int(r.sum()), 1), 3),

@@ -10,6 +10,10 @@ Shrinking proportionally keeps layers in order; no target is closer to the skin 
 cloth found inside the body (not relief) comes out.
 Skirts, hanging cloth and unknown parts keep their bulk (keep = 1), and so does cloth whose closest
 skin is bare by nature (head, hands): a high collar stays a collar, not a face mask.
+Cloth standing well off the body hangs rather than fits (wide trouser legs, bell sleeves, a flared
+peplum): from wrap_hanging_from_m of bulk its keep rises, reaching 1 at wrap_hanging_full_m, so a
+wide cut stays wide while snug cloth still wraps close. The wrapped height still grows with bulk,
+so layers keep their order.
 
 One ARAP-style system then balances, in the same solve: the local shape of the Step C result
 (edges and rotations), the wrap targets, contact springs for points and triangles closer to the
@@ -199,6 +203,9 @@ def solve(start, triangles, keep, skin, faces_of_point, rigid, config, height, b
     keep = np.where(skin.bare[face], 1.0, keep)
     bulk = smooth(h, edges, count, config['wrap_bulk_radius_m'], edge_length)
     keep = smooth(keep, edges, count, config['wrap_bulk_radius_m'], edge_length)   # a skirt eases into its bodice
+    hanging = np.clip((bulk - config['wrap_hanging_from_m']) /
+                      (config['wrap_hanging_full_m'] - config['wrap_hanging_from_m']), 0.0, 1.0)
+    keep = keep + (1.0 - keep) * hanging
     # never a target inside ease: cloth found inside the body is not relief to keep
     wrapped = np.maximum(ease + keep * np.maximum(bulk - ease, 0.0) + (h - bulk), ease)
     move = u * (wrapped - h)[:, None]
