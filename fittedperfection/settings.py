@@ -75,6 +75,7 @@ _VALUES = {
     'fit': {
         'leg_length_range': [0.85, 1.6],   # spec 0.85-1.2; raised to what bind's crotch band allows (see SPEC changes)
         'girth_range': [0.85, 1.15],
+        'trunk_offset_max_m': 0.06,        # a donor trunk slice moves at most this far front to back to centre in the cloth
         'neck_length_range': [1.0, 3.0],   # donor neck may lengthen to the garment's neckline, never shorten
         'neck_top_share': 0.55,            # the neck cloth's top sits this far up the neck (base 0, skull 1)
         'arm_length_range': [0.7, 1.5],    # donor arm stretches so its wrist meets a labelled cuff

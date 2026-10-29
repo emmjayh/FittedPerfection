@@ -52,6 +52,15 @@ These decisions override the original text below where they differ.
   map elbow to elbow and wrist to wrist. Without a cuff the arm keeps its length. The generator
   figures' arms differed by up to 17 cm, which put cuffs past the fingertips (blackshirtsuspenderjeans)
   or above the wrists (blackpantsgreentop).
+- **Donor trunk girth fits depth and width separately** (replacing §5.6 A's single girth factor for the
+  trunk, and its front-to-back centring). Each 3 cm trunk slice measures the innermost cloth in narrow
+  sectors at the front, back and sides. Depth and width scale separately (0.85–1.15), and the slice moves
+  front to back (up to 6 cm) so its front and back margins match, carrying the limbs with it (legs by the
+  lowest slice, each arm by the slice at its shoulder). A side with no cloth (a back opening, a
+  keyhole) takes depth and offset from the nearest covered slices. One radial factor, with the trunk
+  centred by an average, left the donor's back up to 6 cm outside a busty dress with a thin back
+  (hallowewenbaddie): openings started inside the target body, and the wrap spread them as it pushed
+  them out.
 - **Printed designs stay stiff in the wrap** (Step D's "source-shape energy", strengthened where the
   design is printed):
   - **Detection (label stage):** a print is a part of a garment piece whose colour stands out from
