@@ -138,3 +138,72 @@ def test_donor_wrists_meet_the_cuffs(run):
 def test_donor_arms_keep_their_length_without_a_cuff():
     _, built = _built('hallowewenbaddie')
     assert built['record']['arm_scale'] == {'left': 'kept (no cuff)', 'right': 'kept (no cuff)'}
+
+
+def ring_points(half_width, half_depth, centre_y=0.0, heights=np.arange(0.0, 0.3, 0.01), count=72, gap=None):
+    """Points on elliptical rings along z; `gap` drops the back sector (y > 0, |x| < |y|) over a height range."""
+    angle = np.linspace(0, 2 * np.pi, count, endpoint=False)
+    out = []
+    for z in heights:
+        ring = np.column_stack([half_width * np.cos(angle), centre_y + half_depth * np.sin(angle), np.full(count, z)])
+        if gap is not None and gap[0] <= z < gap[1]:
+            rel = ring[:, :2] - [0, centre_y]
+            ring = ring[~((rel[:, 1] > 0) & (np.abs(rel[:, 0]) < np.abs(rel[:, 1])))]
+        out.append(ring)
+    return np.vstack(out)
+
+
+TRUNK_CONFIG = {'girth_range': [0.85, 1.15], 'trunk_offset_max_m': 0.06}
+
+
+def fitted_trunk(cloth, donor_points=None):
+    points = ring_points(0.15, 0.10) if donor_points is None else donor_points
+    move, move_rest, offset_at, summary = donor.trunk_girth(points, points.copy(), np.ones(len(points), bool), cloth,
+                                                            TRUNK_CONFIG, 0.03)
+    assert np.allclose(move, move_rest)                                # the same move in both shapes
+    move[:, 1] += offset_at(points[:, 2])
+    return points + move, summary
+
+
+def test_trunk_depth_and_width_fit_the_cloth_separately():
+    out, summary = fitted_trunk(ring_points(0.14, 0.11))               # narrower and deeper than the donor
+    assert np.ptp(out[:, 1]) / 0.20 > 1.03 and np.ptp(out[:, 0]) / 0.30 < 0.95
+    assert abs(out[:, 1].mean()) < 0.003                               # centred: nothing to move
+
+
+def test_trunk_slices_move_front_to_back_to_centre_in_the_cloth():
+    out, summary = fitted_trunk(ring_points(0.15, 0.10, centre_y=0.03))
+    assert abs(out[:, 1].mean() - 0.03 * 0.97) < 0.005 and summary['offset_cm'][0] > 2.5
+
+
+def test_a_slice_with_no_back_cloth_takes_depth_and_offset_from_its_neighbours():
+    out, summary = fitted_trunk(ring_points(0.15, 0.12, centre_y=0.02, gap=(0.12, 0.18)))
+    assert summary['filled_from_neighbours']['depth'] >= 1
+    opening = (out[:, 2] >= 0.12) & (out[:, 2] < 0.18)
+    assert abs(np.ptp(out[opening, 1]) - np.ptp(out[~opening, 1])) < 0.01
+    assert abs(out[opening, 1].mean() - out[~opening, 1].mean()) < 0.005
+
+
+@needs_bodies
+@pytest.mark.parametrize('run', ['hallowewenbaddie', 'moonshorts', 'baddietanknoarms', 'blackpantsgreentop'])
+def test_donor_back_sits_inside_the_cloth(run):
+    root = Path(__file__).resolve().parents[1]/'runs'/run
+    if not (root/'bind'/'binding.json').is_file():
+        pytest.skip('run not prepared')
+    binding = json.loads((root/'bind'/'binding.json').read_text(encoding='utf-8'))
+    labels = np.load(root/'labels'/'labels.npz')['labels'].astype(str)
+    cage = read_textured_mesh(root/'full'/'CAGE.glb')
+    centres = cage.positions[cage.triangles].mean(axis=1)
+    _, areas = meshes.face_normals(cage.positions, cage.triangles)
+    built = donor.build(binding, labels, centres, areas, settings.section('fit'))
+    rest, trunk = built['rest'], built['body'].vertex_region == 'trunk'
+    cloth = np.isin(labels, ('torso', 'pants', 'waistband'))
+    crotch, top = binding['crotch']['height_m'], binding['shoulders']['centre'][2]
+    gaps = []
+    for z in np.arange(crotch + 0.1, top - 0.1, 0.03):              # the centre strip of the back, slice by slice
+        d = trunk & (rest[:, 2] >= z) & (rest[:, 2] < z + 0.03) & (np.abs(rest[:, 0]) < 0.06)
+        k = cloth & (centres[:, 2] >= z) & (centres[:, 2] < z + 0.03) & (np.abs(centres[:, 0]) < 0.06)
+        back = k & (centres[:, 1] > rest[d, 1].mean()) if d.sum() >= 4 else k & False
+        if back.sum() >= 2:
+            gaps.append(np.percentile(centres[back, 1], 10) - rest[d, 1].max())
+    assert len(gaps) >= 5 and np.median(gaps) >= -0.005

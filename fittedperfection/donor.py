@@ -8,12 +8,15 @@ from the same numbers:
 2. leg length: the legs scale vertically about the crotch so crotch-to-floor matches
    (clamped), and the figure stands on the floor; hems are never used;
    then the neck lengthens (clamped) so the head starts at the top of the neck cloth;
-3. the trunk is centred horizontally inside the torso and trouser cloth;
+3. (no global centring: the trunk is centred front to back slice by slice in step 5);
 4. pose: each arm turns about its own shoulder joint to point at the cuff, each leg
    about its hip to point at the ankle (straight, as no knee is used);
-5. girth: each region's sections scale radially to sit just inside the innermost
-   cloth, capped. Applied per vertex, blended by the region weights so regions join
-   smoothly, identically in the rest pose and the posed shape.
+5. girth: each region's sections scale to sit just inside the innermost cloth, capped.
+   Limbs scale radially. Trunk slices fit depth and width separately and move front to
+   back so their front and back margins match (a busty dress with a thin back is deep in
+   front and shallow behind; one radial factor left the donor's back outside the cloth).
+   Applied per vertex, blended by the region weights so regions join smoothly,
+   identically in the rest pose and the posed shape.
 Landmarks on both sides come from the same bind functions (fittedperfection/body.py).
 """
 import numpy as np
@@ -122,20 +125,10 @@ def build(binding, labels, garment_centres, garment_areas, config, body_id='body
             per_bone[bone] = (lift if bone in above else stretch_neck) @ per_bone[bone]
         rest0 = bodies.skin(body, per_bone)
 
-    # 3. centre the trunk front-to-back inside the torso/trouser cloth. Not side to side: step 1 already put the
-    #    donor on the garment's shoulder centre, and pockets, chains or straps on one side pull the cloth's average
-    #    over (3.6 cm on baddietanknoarms), which put every fit off to one side.
-    trunk_cloth = np.isin(labels, ('torso', 'pants', 'waistband')) & \
-        (garment_centres[:, 2] > wanted + 0.1) & (garment_centres[:, 2] < garment_shoulder[2] - 0.1)
-    trunk_body = (body.vertex_region == 'trunk') & (rest0[:, 2] - rest0[:, 2].min() > wanted + 0.1) & \
-        (rest0[:, 2] - rest0[:, 2].min() < garment_shoulder[2] - 0.1)
-    shift = np.zeros(3)
-    if trunk_cloth.sum() > 20 and trunk_body.sum() > 20:
-        shift[1] = np.average(garment_centres[trunk_cloth, 1], weights=garment_areas[trunk_cloth]) - \
-            rest0[trunk_body, 1].mean()
-    centre = translation(shift)
-    record['trunk_shift_m'] = np.round(shift, 4).tolist()
-    rest_bones = np.einsum('ij,bjk->bik', centre @ stand, per_bone)
+    # 3. no global centring. Front to back, each trunk slice is centred inside the cloth in step 5 (an average over
+    #    the whole trunk put the donor's back outside a busty dress); side to side, step 1 already put the donor on
+    #    the garment's shoulder centre.
+    rest_bones = np.einsum('ij,bjk->bik', stand, per_bone)
     rest = bodies.skin(body, rest_bones)
 
     # 3b. arm length: a cuff sits at the wrist, so where a sleeve has a labelled cuff the donor's arm (upper arm,
@@ -260,6 +253,21 @@ def girth(body, rest, posed, pose, labels, garment_centres, config, step=0.03):
         origin, axis = axes[region]
         weight = body.region_weight[region]
         cloth = np.isin(labels, parts)
+        if region == 'trunk':
+            moved_posed, moved_rest, offset_at, summary[region] = trunk_girth(
+                posed, rest, body.vertex_region == region, garment_centres[cloth], config, step)
+            move_posed += weight[:, None] * moved_posed
+            move_rest += weight[:, None] * moved_rest
+            # the front-to-back offset carries the whole body, so limbs stay attached: the trunk by height (the
+            # legs take its lowest slice, the head its top one), each arm by the slice at its shoulder
+            shift = np.zeros(len(posed))
+            for part, part_weight in body.region_weight.items():
+                heights = np.full(len(posed), posed[body.vertex_region == part, 2].max()) \
+                    if part.startswith('arm.') else posed[:, 2]
+                shift += part_weight * offset_at(heights)
+            move_posed[:, 1] += shift
+            move_rest[:, 1] += shift
+            continue
         t_body = (posed - origin) @ axis
         t_cloth = (garment_centres - origin) @ axis
         inside = body.vertex_region == region
@@ -302,3 +310,98 @@ def girth(body, rest, posed, pose, labels, garment_centres, config, step=0.03):
                            'max': round(float(smoothed.max()), 3),
                            'clamped': int(np.sum(np.isclose(smoothed, low) | np.isclose(smoothed, high)))}
     return rest + move_rest, posed + move_posed, summary
+
+
+SECTOR_MIN_FACES = 4             # a trunk slice's front, back or sides count as covered with this many cloth faces
+SECTOR_HALF_ANGLE_DEG = 20       # front, back and sides are measured within this angle of -y, +y and +-x
+
+
+def sectors(offsets):
+    """Masks of offsets (from a slice centre, in xy) within the narrow front (-y), back (+y) and side (+-x) sectors."""
+    angle = np.degrees(np.arctan2(offsets[:, 1], offsets[:, 0]))
+    off = lambda a: np.abs((angle - a + 180) % 360 - 180)
+    return {'front': off(-90) <= SECTOR_HALF_ANGLE_DEG, 'back': off(90) <= SECTOR_HALF_ANGLE_DEG,
+            'sides': (off(0) <= SECTOR_HALF_ANGLE_DEG) | (off(180) <= SECTOR_HALF_ANGLE_DEG)}
+
+
+def trunk_girth(posed, rest, inside, cloth_centres, config, step):
+    """Trunk girth, slice by slice along z: depth (y) and width (x) scale separately to sit just inside the
+    innermost cloth in front, behind and at the sides, and the slice moves front to back so its front and back
+    margins match. A side with no cloth (a back opening, a keyhole) gives nothing: depth and offset come from the
+    nearest slices covered front and back, width from slices covered at the sides, and with none at all the
+    radial factor stands in. Returns the scaling moves (posed, rest; unweighted), the front-to-back offset as a
+    function of height, and a summary."""
+    low, high = config['girth_range']
+    limit = config['trunk_offset_max_m']
+    z = posed[:, 2]
+    starts, centres_posed, centres_rest, depth, width, offset, radial = [], [], [], [], [], [], []
+    for start in np.arange(z[inside].min(), z[inside].max(), step):
+        section = inside & (z >= start) & (z < start + step)
+        if section.sum() < 6:
+            continue
+        c = posed[section].mean(axis=0)
+        rel = posed[section] - c
+        ring = (cloth_centres[:, 2] >= start) & (cloth_centres[:, 2] < start + step)
+        around = cloth_centres[ring] - c
+        body_sector, cloth_sector = sectors(rel), sectors(around)
+        # distance from the slice centre in each narrow sector: the donor's outermost surface, the innermost cloth
+        reach = {name: (np.percentile(np.linalg.norm(rel[body_sector[name], :2], axis=1), 90) if body_sector[name].sum() >= 3
+                        else np.nan,
+                        0.97 * np.percentile(np.linalg.norm(around[cloth_sector[name], :2], axis=1), 10)
+                        if cloth_sector[name].sum() >= SECTOR_MIN_FACES else np.nan)
+                 for name in ('front', 'back', 'sides')}
+        (front_d, cloth_front), (back_d, cloth_back), (side_d, cloth_side) = \
+            reach['front'], reach['back'], reach['sides']
+        d, w, o, r = np.nan, np.nan, np.nan, 1.0
+        if not np.isnan([front_d, back_d, cloth_front, cloth_back]).any():
+            d = float(np.clip((cloth_front + cloth_back) / (front_d + back_d), low, high))
+            o = float(np.clip(((cloth_back - d * back_d) - (cloth_front - d * front_d)) / 2, -limit, limit))
+        if not np.isnan([side_d, cloth_side]).any():
+            w = float(np.clip(cloth_side / side_d, low, high))
+        if len(around) >= 15:                                          # the radial factor, as for the limbs
+            r_body = max(np.percentile(np.linalg.norm(rel[:, :2], axis=1), 90), 1e-4)
+            r = float(np.clip(0.97 * np.percentile(np.linalg.norm(around[:, :2], axis=1), 10) / r_body, low, high))
+        starts.append(start)
+        centres_posed.append(c)
+        centres_rest.append(rest[section].mean(axis=0))
+        depth.append(d)
+        width.append(w)
+        offset.append(o)
+        radial.append(r)
+    if not starts:
+        return np.zeros_like(posed), np.zeros_like(rest), {}
+    starts, radial = np.array(starts), np.array(radial)
+
+    def filled(values, fallback):
+        values = np.array(values, dtype=float)
+        known = ~np.isnan(values)
+        if not known.any():
+            return np.asarray(fallback, dtype=float), len(values)
+        return np.interp(starts, starts[known], values[known]), int((~known).sum())
+
+    def median3(values):
+        return np.array([np.median(values[max(0, i - 1):i + 2]) for i in range(len(values))])
+
+    depth, filled_depth = filled(depth, radial)
+    offset, _ = filled(offset, np.zeros(len(starts)))
+    width, filled_width = filled(width, radial)
+    depth, width, offset = median3(depth), median3(width), median3(offset)
+    index = np.clip(np.searchsorted(starts, z, side='right') - 1, 0, len(starts) - 1)
+    moves = []
+    for points, centres in ((posed, np.array(centres_posed)), (rest, np.array(centres_rest))):
+        rel = points - centres[index]
+        move = np.zeros_like(points)
+        move[:, 0] = (width[index] - 1) * rel[:, 0]
+        move[:, 1] = (depth[index] - 1) * rel[:, 1]
+        moves.append(move)
+
+    def offset_at(heights):
+        return offset[np.clip(np.searchsorted(starts, heights, side='right') - 1, 0, len(starts) - 1)]
+
+    summary = {'sections': len(starts), 'depth': [round(float(depth.min()), 3), round(float(depth.max()), 3)],
+               'width': [round(float(width.min()), 3), round(float(width.max()), 3)],
+               'offset_cm': [round(float(offset.min()) * 100, 1), round(float(offset.max()) * 100, 1)],
+               'filled_from_neighbours': {'depth': filled_depth, 'width': filled_width},
+               'clamped': int(np.sum(np.isclose(depth, low) | np.isclose(depth, high)) +
+                              np.sum(np.isclose(width, low) | np.isclose(width, high)))}
+    return moves[0], moves[1], offset_at, summary
