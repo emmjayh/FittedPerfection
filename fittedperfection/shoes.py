@@ -27,11 +27,16 @@ LIP_MIN_DROP_M = 0.005            # the sole's edge must narrow the cross-sectio
 DEFAULT_SOLE_M = 0.015            # sole thickness when no edge is found
 
 
-def foot_points(body, positions, side):
-    """The body's foot (vertices mostly weighted to the foot bone and its children)."""
+def foot_vertices(body, side):
+    """Indices of the body's foot vertices (mostly weighted to the foot bone and its children)."""
     bones = bodies._descendants(body.parents, body.bone_names.index(SIDES[side]))
     weight = (body.weights * np.isin(body.joints, list(bones))).sum(axis=1)
-    return positions[weight >= 0.5]
+    return np.flatnonzero(weight >= 0.5)
+
+
+def foot_points(body, positions, side):
+    """The body's foot (vertices mostly weighted to the foot bone and its children)."""
+    return positions[foot_vertices(body, side)]
 
 
 def frame(points):

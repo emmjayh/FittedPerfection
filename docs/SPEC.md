@@ -102,6 +102,10 @@ These decisions override the original text below where they differ.
   - **Boot shafts:** footwear rising at least 15 cm above the ankle line follows the leg rather
     than the rigid shoe. In the wrap it keeps its looseness and is stiff, like a print, so a boot
     keeps its structured shape; contact still keeps the calf inside. Lower shoes stay fully rigid.
+  - **Legwear around a shoe follows the leg, not the foot** (Step C): on a side with footwear, the leg's
+    cloth takes its moves from the leg above the foot. The foot is inside the shoe, which is placed on
+    its own; following the donor's longer toes pulled a wide trouser drape back over the cuff it hid
+    (bluetiebaggypants).
   - **Cloth meeting a shoe** (a stocking ending inside it, a trouser cuff over it) moves with the
     shoe where they touch, fading back to its own placement within 8 cm (`shoe_join_blend_m`).
     The shoe goes to the foot and the cloth to the leg; without this a gap opens between them.

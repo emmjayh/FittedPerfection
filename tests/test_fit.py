@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from fittedperfection import body, donor, fit, meshes, settings
+from fittedperfection import body, donor, fit, meshes, settings, shoes
 
 REAL = Path(__file__).resolve().parents[1]/'assets'/'bodies'/'bodies.json'
 needs_bodies = pytest.mark.skipif(not REAL.is_file(), reason='bodies not made')
@@ -95,6 +95,25 @@ def test_transfer_moves_donor_surface_points_onto_the_target_surface():
                          source, crotch, settings.section('fit'))
     error = np.linalg.norm(moved - target.positions[chosen], axis=1)
     assert np.median(error) < 0.01 and np.percentile(error, 99) < 0.04
+
+
+@needs_bodies
+def test_trousers_around_a_shoe_follow_the_leg_not_the_foot():
+    source, target = body.load('body_01_medium'), body.load('body_04_broad_muscular')
+    crotch = body.landmarks(source)['crotch_height_m']
+    foot = shoes.foot_vertices(source, 'left')
+    toe = source.positions[foot[np.argmin(source.positions[foot, 1])]]           # the front of the left foot
+    hem = (toe + [0.0, -0.05, 0.02])[None]                                    # trouser hem 5 cm in front of it
+    config = settings.section('fit')
+    bare = fit.transfer(hem, np.array(['leg.left']), source.positions, target.positions, source, crotch, config)
+    shod = fit.transfer(hem, np.array(['leg.left']), source.positions, target.positions, source, crotch, config,
+                        shod=('left',))
+    toe_move = target.positions[foot] - source.positions[foot]
+    ankle = np.setdiff1d(np.flatnonzero(source.vertex_region == 'leg.left'), foot)
+    ankle = ankle[np.argsort(np.linalg.norm(source.positions[ankle] - toe, axis=1))[:30]]
+    leg_move = (target.positions[ankle] - source.positions[ankle]).mean(axis=0)
+    assert np.linalg.norm((shod - hem)[0] - leg_move) < np.linalg.norm((bare - hem)[0] - leg_move)
+    assert np.linalg.norm((bare - hem)[0] - toe_move.mean(axis=0)) < np.linalg.norm((shod - hem)[0] - toe_move.mean(axis=0))
 
 
 @pytest.mark.parametrize('run', ['moonshorts', 'baddietanknoarms'])
