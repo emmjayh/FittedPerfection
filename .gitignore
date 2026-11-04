@@ -36,3 +36,6 @@ uploads/
 
 # Owner answers about local garments (kept by garment hash, like the archives they answer)
 confirmations/
+
+# The submission video and its working files (large)
+submission/

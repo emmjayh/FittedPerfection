@@ -261,7 +261,10 @@ class Run:
         sha = file_sha256(garment)
         runs_folder = self.folder.parent
 
-        if fresh:
+        # a first fit that stopped (to ask for spending, or a facing answer) and is restarted carries on as that same
+        # first fit: its provenance is kept and finished, never started again
+        resuming = self.state is not None and 'provenance' in self.state
+        if fresh and not resuming:
             earlier = seen_before(runs_folder).get(sha)
             if earlier or self.folder.exists():
                 where = sorted(set(earlier or [str(self.folder)]))
@@ -278,7 +281,11 @@ class Run:
             raise RunError(f'run {self.folder.name} belongs to other garment bytes; choose a new run name')
 
         self.state['code'] = code_identity()
-        if fresh:
+        if resuming:
+            self.state['provenance'].setdefault('resumed', []).append(now())
+            self._write_provenance()
+            fresh = True
+        elif fresh:
             self.state['provenance'] = {
                 'garment file': garment.name,
                 'garment sha256': sha,
