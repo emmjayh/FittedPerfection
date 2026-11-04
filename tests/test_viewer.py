@@ -91,3 +91,19 @@ def test_serve_explains_a_busy_port(project, monkeypatch):
     monkeypatch.setattr(viewer, 'ViewerServer', refuse)
     with pytest.raises(RuntimeError, match='already in use'):
         viewer.serve(1)
+
+
+def test_underwear_route_serves_the_paint_record_and_refuses_unknown_bodies(project, monkeypatch):
+    monkeypatch.setattr(viewer.underwear, 'paint', lambda body_id: {'body': body_id, 'bands': {'briefs_top': 0.9}})
+    server = viewer.ViewerServer(('127.0.0.1', 0), viewer.ViewerHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f'http://127.0.0.1:{server.server_address[1]}'
+    try:
+        record = json.loads(urllib.request.urlopen(base+'/api/underwear/body_02_tall_slender').read())
+        assert record == {'body': 'body_02_tall_slender', 'bands': {'briefs_top': 0.9}}
+        for bad in ('/api/underwear/nobody', '/api/underwear/../secret.json'):
+            with pytest.raises(urllib.error.HTTPError):
+                urllib.request.urlopen(base+bad)
+    finally:
+        server.shutdown()
+        server.server_close()

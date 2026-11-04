@@ -26,7 +26,8 @@ SKIN_PROMPT = (
 FIT_PROMPT = (
     'Top row: a 3D outfit from the front; bottom row: the same from the back. In each row the first figure is the '
     'original outfit and the next four are the same outfit fitted onto four different bodies (shown in a flat skin '
-    'tone). Its parts: {parts}. Compare each fitted body with the original and list only real problems: skin '
+    'tone). The plain grey underwear on the bodies is painted on for display and is not part of the outfit: where '
+    'the original covers the body, grey underwear showing counts as skin showing. Its parts: {parts}. Compare each fitted body with the original and list only real problems: skin '
     'showing where the original covers it; design changes (sleeve or hem length, volume, shoe shape, missing or '
     'moved hardware); holes, spikes or floating pieces. Reply with JSON only: {{"findings": [{{"body": 1-4, '
     '"view": "front|back", "where": "...", "problem": "skin_showing|design_change|hole|spike|floating", '

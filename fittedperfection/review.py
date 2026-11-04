@@ -10,7 +10,8 @@ R1 audit (numpy, per body, from OUTFIT.glb):
      cloth inside the body in each;
    silhouette: width profile against the source, normalised by height (uncalibrated: reported, never a gate);
    stretch: copied from the fit report.
-R2 renders (Blender): the source and each body from the front, three-quarter, side and back, with sheets.
+R2 renders (Blender): the source and each body from the front, three-quarter, side and back, with sheets; the
+   bodies wear their display underwear (underwear.py).
 R3 Muse Wonder: one composite image (front and back rows), structured findings, cached, spend-guarded:
    with no spending allowed and nothing cached, nothing is sent.
 """
@@ -21,12 +22,13 @@ import numpy as np
 from PIL import Image
 from scipy.spatial import cKDTree
 
-from . import body as bodies, config, donor, fit, fullres, meshes, models, secrets, settings, wonder, wrap
+from . import (body as bodies, config, donor, fit, fullres, meshes, models, secrets, settings, underwear, wonder,
+               wrap)
 from .gltf import gltf_to_canonical, read_skinned_mesh, read_textured_mesh
 from .samapi import SamApiError, SpendRefused
 
-CODE = ('review.py', 'blender/review.py', 'blender/preview.py', 'wonder.py', 'wrap.py', 'fullres.py', 'fit.py',
-        'body.py', 'donor.py', 'gltf.py')
+CODE = ('review.py', 'blender/review.py', 'blender/preview.py', 'wonder.py', 'underwear.py', 'wrap.py', 'fullres.py',
+        'fit.py', 'body.py', 'donor.py', 'gltf.py')
 SCRIPT = config.PACKAGE/'blender'/'review.py'
 VIEWS = ('front', 'three_quarter', 'side', 'back')
 LEFT_OUT = ('footwear', 'hardware', 'skin')
@@ -190,7 +192,7 @@ def renders(ctx, run_folder, out):
         fit = run_folder/'fit'/target
         items += [f'{target}|{fit/"BODY.glb"}|skin', f'{target}|{fit/"OUTFIT.glb"}|texture']
     command = [config.blender(), '--background', '--factory-startup', '--python-exit-code', '1', '--python', SCRIPT,
-               '--', '--out', folder, '--height', 900]
+               '--', '--out', folder, '--height', 900, '--underwear', underwear.write_all(out/'underwear.json')]
     for item in items:
         command += ['--item', item]
     ctx.call(command, 'review-blender.log')

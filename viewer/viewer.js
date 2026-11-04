@@ -29,7 +29,6 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.addEventListener('change', draw);
 
 const materials = {
-  skin: new THREE.MeshStandardMaterial({ color: SKIN_TONE, roughness: 0.85 }),
   xray: new THREE.MeshBasicMaterial({ color: 0xff6a4d, transparent: true, opacity: 0.3, depthTest: false, depthWrite: false }),
   plain: new THREE.MeshStandardMaterial({ color: 0xa3adb8, roughness: 0.9, side: THREE.DoubleSide }),
 };
@@ -37,6 +36,81 @@ const materials = {
 const view = { body: 'skin', outfit: 'texture', camera: 'front', aimed: false };
 let catalog = { outfits: [], bodies: {}, body_order: [] };
 let request = 0;
+
+// ---- display underwear (fittedperfection/underwear.py) ---------------------
+// Every body wears plain grey underwear painted on its own surface: high briefs, and a bandeau top on the female
+// bodies. The shader colours by the rest-pose height (glTF y, before skinning), so the edges are straight, nothing
+// moves and the bands stay put when a body is posed. Display only: never part of a fit.
+
+const underwearRecords = new Map();      // body id -> Promise<record | null>
+const dressedMaterials = new Map();      // body id -> material
+const undressed = new THREE.MeshStandardMaterial({ color: 0x8c949e, roughness: 0.9 });   // if a record can't load
+
+function underwearRecord(body) {
+  if (!underwearRecords.has(body)) {
+    underwearRecords.set(body, fetch(`/api/underwear/${body}`)
+      .then((response) => (response.ok ? response.json() : null)).catch(() => null));
+  }
+  return underwearRecords.get(body);
+}
+
+function dressedMaterial(body, record) {
+  if (dressedMaterials.has(body)) return dressedMaterials.get(body);
+  const material = new THREE.MeshStandardMaterial({ color: SKIN_TONE, roughness: 0.85 });
+  const b = record.bands;
+  const uniforms = {
+    uBriefsTop: { value: b.briefs_top }, uBriefsLeg: { value: b.briefs_leg }, uBriefsTrunk: { value: b.briefs_trunk },
+    uTop: { value: record.top ? 1 : 0 }, uTopLow: { value: b.top_low ?? 0 }, uTopHigh: { value: b.top_high ?? 0 },
+    uArmLimit: { value: record.arm_limit }, uLegLimit: { value: record.leg_limit },
+    uUnderColour: { value: new THREE.Vector3(...record.colour) },
+  };
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>
+attribute float underArm;
+attribute float underLeg;
+varying float vUnderArm;
+varying float vUnderLeg;
+varying float vRestY;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+vUnderArm = underArm;
+vUnderLeg = underLeg;
+vRestY = position.y;`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying float vUnderArm;
+varying float vUnderLeg;
+varying float vRestY;
+uniform float uBriefsTop, uBriefsLeg, uBriefsTrunk, uTop, uTopLow, uTopHigh, uArmLimit, uLegLimit;
+uniform vec3 uUnderColour;`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+float briefsLow = vUnderLeg > uLegLimit ? uBriefsLeg : uBriefsTrunk;
+bool inBriefs = vRestY > briefsLow && vRestY < uBriefsTop;
+bool inTop = uTop > 0.5 && vRestY > uTopLow && vRestY < uTopHigh;
+if (vUnderArm < uArmLimit && (inBriefs || inTop)) diffuseColor.rgb = uUnderColour;`);
+  };
+  dressedMaterials.set(body, material);
+  return material;
+}
+
+async function dress(model, body) {
+  const record = await underwearRecord(body);
+  model.traverse((mesh) => {
+    if (!mesh.isMesh) return;
+    const geometry = mesh.geometry;
+    const count = geometry.attributes.position.count;
+    if (!record || record.vertex_arm.length !== count) {
+      mesh.userData.dressed = undressed;
+      return;
+    }
+    if (!geometry.attributes.underArm) {
+      geometry.setAttribute('underArm', new THREE.Float32BufferAttribute(record.vertex_arm, 1));
+      geometry.setAttribute('underLeg', new THREE.Float32BufferAttribute(record.vertex_leg, 1));
+    }
+    mesh.userData.dressed = dressedMaterial(body, record);
+  });
+}
 
 // ---- scenes ---------------------------------------------------------------
 
@@ -82,7 +156,7 @@ function applyLooks() {
         node.visible = view.body !== 'off';
         node.traverse((mesh) => {
           if (!mesh.isMesh) return;
-          mesh.material = view.body === 'xray' ? materials.xray : materials.skin;
+          mesh.material = view.body === 'xray' ? materials.xray : (mesh.userData.dressed || undressed);
           mesh.renderOrder = view.body === 'xray' ? 10 : 0;
         });
       } else if (node.userData.role === 'outfit') {
@@ -124,7 +198,7 @@ async function rebuild() {
           bodyUrl ? instance(bodyUrl) : null,
           draftUrl ? instance(draftUrl) : null,
         ]);
-        if (bodyModel) { bodyModel.userData.role = 'body'; group.add(bodyModel); }
+        if (bodyModel) { await dress(bodyModel, body); bodyModel.userData.role = 'body'; group.add(bodyModel); }
         if (draftModel) { draftModel.userData.role = 'outfit'; group.add(draftModel); }
         return group;
       }));

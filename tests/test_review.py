@@ -98,3 +98,9 @@ def test_wonder_review_sends_one_composite_and_keeps_the_findings(tmp_path, monk
     assert sent[0]['reasoning']['effort'] == 'minimal'
     again = review.wonder_review(tmp_path, np.array(['torso']))           # cached: no second request
     assert len(sent) == 1 and again['call']['cached']
+
+
+def test_the_fit_prompt_says_the_underwear_belongs_to_the_body():
+    from fittedperfection import wonder
+    prompt = wonder.FIT_PROMPT.format(parts='skirt, footwear')
+    assert 'grey underwear' in prompt and 'counts as skin showing' in prompt and 'skirt, footwear' in prompt

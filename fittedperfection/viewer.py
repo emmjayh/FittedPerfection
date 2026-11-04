@@ -12,6 +12,7 @@ in them (fit/ and each fit.stale-N/), and the four bodies.
 The app layer (fittedperfection/app.py): POST /api/uploads (a dropped archive), /api/jobs (start a fit),
 /api/jobs/approve (allow the spending it asked for), /api/jobs/confirm-facing (the owner says which way an outfit
 faces), /api/jobs/cancel; GET /api/jobs/current and /api/outfits.
+GET /api/underwear/<body>: the body's display underwear (fittedperfection/underwear.py), painted by the page.
 Writes are accepted only from this viewer's own page (its Origin plus a custom header).
 """
 import json
@@ -22,7 +23,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from . import app, config
+from . import app, config, underwear
 
 JOBS = app.Jobs()
 ALLOWED = {'.glb', '.png', '.jpg', '.jpeg', '.json', '.html'}
@@ -178,6 +179,14 @@ class ViewerHandler(SimpleHTTPRequestHandler):
             return self._json(JOBS.status())
         if path == '/api/outfits':
             return self._json(app.listed_outfits())
+        if path.startswith('/api/underwear/'):
+            body_id = path[len('/api/underwear/'):]
+            if body_id not in config.BODIES:
+                return self._json({'error': f'unknown body {body_id!r}'}, 404)
+            try:
+                return self._json(underwear.paint(body_id))
+            except (OSError, ValueError) as failed:
+                return self._json({'error': f'{type(failed).__name__}: {failed}'}, 404)
         if path.startswith('/files/'):
             share, _, relative = path[len('/files/'):].partition('/')
             return self._send_shared(share, relative)
