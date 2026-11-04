@@ -16,7 +16,7 @@ import bpy
 from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from preview import bounds, import_item, no_metadata                    # noqa: E402  (Blender's own python)
+from preview import bounds, import_item, load_underwear, no_metadata  # noqa: E402  (Blender's own python)
 
 # camera direction (from the figure towards the camera) per view; front looks from -Y, side from own left (+X)
 VIEWS = {'front': (0.0, -1.0), 'three_quarter': (math.sqrt(0.5), -math.sqrt(0.5)), 'side': (1.0, 0.0),
@@ -28,11 +28,13 @@ def arguments():
     parser.add_argument('--out', required=True)
     parser.add_argument('--height', type=int, default=900)
     parser.add_argument('--item', action='append', required=True)
+    parser.add_argument('--underwear')     # display underwear records (preview.py)
     return parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
 
 
 def main():
     args = arguments()
+    load_underwear(args.underwear)
     groups = {}
     for item in args.item:
         group, path, style = item.split('|')

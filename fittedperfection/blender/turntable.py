@@ -14,7 +14,7 @@ import bpy
 from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from preview import bounds, import_item, no_metadata                    # noqa: E402  (Blender's own python)
+from preview import bounds, import_item, load_underwear, no_metadata  # noqa: E402  (Blender's own python)
 
 
 def arguments():
@@ -23,6 +23,7 @@ def arguments():
     parser.add_argument('--frames', required=True)
     parser.add_argument('--title', default='')
     parser.add_argument('--item', action='append', required=True)
+    parser.add_argument('--underwear')     # display underwear records (preview.py)
     parser.add_argument('--count', type=int, default=120)          # frames per turn (5 s at 24 fps)
     parser.add_argument('--width', type=int, default=1600)
     parser.add_argument('--height', type=int, default=720)
@@ -63,6 +64,7 @@ def encode(frames, fps, width, height, path):
 
 def main():
     args = arguments()
+    load_underwear(args.underwear)
     for obj in list(bpy.data.objects):
         bpy.data.objects.remove(obj, do_unlink=True)
     scene = bpy.context.scene

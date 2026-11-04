@@ -120,6 +120,14 @@ These decisions override the original text below where they differ.
     to the boot under it.
   - Hanging cloth above the knees takes pelvis-led weights, so tails follow the hips.
   - `preview --pose` checks the skinning in the §5.7 test pose (elbows 60°, knees 30°).
+- **Display underwear** (`underwear.py`): wherever a body is shown (the 3D viewer, the `preview`
+  and turntable renders, and the review renders) it wears plain grey underwear painted on its own
+  surface: high briefs on every body and a bandeau top on the female bodies. The bands come from
+  each body's crotch, root and breast heights. The briefs stop at the crotch, so thigh gaps still
+  show; hands are never painted. Nothing moves: the viewer colours by rest height in a shader,
+  and Blender only cuts faces along the band lines. It is never part of a fit (the fit doesn't
+  import it). Muse Wonder's prompt says the underwear belongs to the body, so grey showing where
+  the original covers counts as skin showing; the audit's coverage is measured from geometry.
 
 ---
 
@@ -399,7 +407,7 @@ triangles. At most 4 normalized influences; twins and rigid groups share weights
 **Human review:**
 
 - Blender renders: front, three-quarter, side and back per body, with the body in a flat skin
-  tone so penetrations show.
+  tone (and its painted grey display underwear) so penetrations show.
 - The 3D web viewer: outfit/body/version selector, X-ray body, front/side/back buttons and the
   source image alongside.
 

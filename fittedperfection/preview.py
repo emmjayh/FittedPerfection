@@ -9,7 +9,7 @@ import subprocess
 
 import numpy as np
 
-from . import config, donor, meshes, seal, settings
+from . import config, donor, meshes, seal, settings, underwear
 from .glbwrite import write_mesh
 from .gltf import read_textured_mesh
 
@@ -27,7 +27,8 @@ def donor_inputs(run_folder):
 
 def render(items, out, name, pose=False):
     command = [str(config.blender()), '--background', '--factory-startup', '--python-exit-code', '1', '--python',
-               str(SCRIPT), '--', '--out', str(out), '--name', name] + (['--pose'] if pose else [])
+               str(SCRIPT), '--', '--out', str(out), '--name', name,
+               '--underwear', str(underwear.write_all(out/'underwear.json'))] + (['--pose'] if pose else [])
     for item in items:
         command += ['--item', item]
     log = out/f'{name}.log'
@@ -60,7 +61,8 @@ def turntable(name, count=120):
     video = out.parent/f'turntable-{name}.mp4'
     command = [str(config.blender()), '--background', '--factory-startup', '--python-exit-code', '1', '--python',
                str(config.PACKAGE/'blender'/'turntable.py'), '--', '--out', str(video), '--frames', str(out/'frames'),
-               '--title', f'{name}: source, then the four bodies', '--count', str(count)]
+               '--title', f'{name}: source, then the four bodies', '--count', str(count),
+               '--underwear', str(underwear.write_all(out/'underwear.json'))]
     for item in items:
         command += ['--item', item]
     log = out/'turntable.log'

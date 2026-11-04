@@ -3,20 +3,79 @@
     blender --background --factory-startup --python-exit-code 1 --python fittedperfection/blender/preview.py -- \
         --out FOLDER --name NAME --item "PATH|STYLE|OFFSET_X" --item ...
 
-Styles: texture (as authored), skin (flat skin tone), cloth (flat grey). Writes
+Styles: texture (as authored), skin (flat skin tone), cloth (flat grey). With --underwear JSON (body id -> record
+from fittedperfection/underwear.py), a skin body whose folder is a body id wears its display underwear. Writes
 NAME-front.png and NAME-side.png, plus NAME-xray-front.png and NAME-xray-side.png
 where everything is see-through so what is inside shows. Orthographic, framed on
 everything shown; front looks from -Y, side from the garment's own left (+X).
 """
 import argparse
+import json
 import math
 import sys
 from pathlib import Path
 
+import bmesh
 import bpy
 from mathutils import Vector
 
 COLOURS = {'skin': (0.82, 0.63, 0.51, 1.0), 'cloth': (0.6, 0.62, 0.66, 1.0)}
+UNDERWEAR = {}                 # body id -> display underwear record (fittedperfection/underwear.py)
+
+
+def load_underwear(path):
+    if path:
+        UNDERWEAR.update(json.loads(Path(path).read_text(encoding='utf-8')))
+
+
+def _descendants(armature, roots):
+    names = set()
+    for root in roots:
+        bone = armature.data.bones.get(root)
+        if bone is not None:
+            names |= {bone.name} | {child.name for child in bone.children_recursive}
+    return names
+
+
+def paint_underwear(obj, record):
+    """Cut the body's faces along the band heights and paint the faces inside them (display only). Bisect only adds
+    edges on the surface, so no vertex moves. Arm and leg weights come from the body's own bone groups, so the rule
+    matches fittedperfection/underwear.painted() whatever vertices the importer kept."""
+    armature = obj.parent if obj.parent is not None and obj.parent.type == 'ARMATURE' else None
+    if armature is None:
+        return
+    arm_bones, leg_bones = _descendants(armature, record['arm_roots']), _descendants(armature, record['leg_roots'])
+    group_names = {group.index: group.name for group in obj.vertex_groups}
+    arm, leg = [], []
+    for vertex in obj.data.vertices:
+        names = [(group_names.get(g.group), g.weight) for g in vertex.groups]
+        arm.append(sum(w for n, w in names if n in arm_bones))
+        leg.append(sum(w for n, w in names if n in leg_bones))
+    material = bpy.data.materials.new('underwear')
+    material.diffuse_color = (*record['colour'], 1.0)
+    obj.data.materials.append(material)
+    index = len(obj.data.materials) - 1
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    origin = bm.faces.layers.int.new('origin')
+    weights = {}
+    for face in bm.faces:
+        face[origin] = face.index
+        corners = [v.index for v in face.verts]
+        weights[face.index] = (sum(arm[i] for i in corners) / len(corners), sum(leg[i] for i in corners) / len(corners))
+    for z in record['bands'].values():
+        bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=(0.0, 0.0, z),
+                               plane_no=(0.0, 0.0, 1.0))
+    bands = record['bands']
+    for face in bm.faces:
+        face_arm, face_leg = weights[face[origin]]
+        z = face.calc_center_median().z
+        low = bands['briefs_leg'] if face_leg > record['leg_limit'] else bands['briefs_trunk']
+        inside = low < z < bands['briefs_top'] or (record['top'] and bands['top_low'] < z < bands['top_high'])
+        if face_arm < record['arm_limit'] and inside:
+            face.material_index = index
+    bm.to_mesh(obj.data)
+    bm.free()
 
 
 def arguments():
@@ -25,6 +84,7 @@ def arguments():
     parser.add_argument('--name', required=True)
     parser.add_argument('--item', action='append', required=True)
     parser.add_argument('--pose', action='store_true')
+    parser.add_argument('--underwear')
     return parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
 
 
@@ -68,6 +128,10 @@ def import_item(path, style, offset, axis):
         for obj in meshes:
             obj.data.materials.clear()
             obj.data.materials.append(material)
+    record = UNDERWEAR.get(Path(path).parent.name) if style == 'skin' else None
+    if record is not None:
+        for obj in meshes:
+            paint_underwear(obj, record)
     return meshes
 
 
@@ -87,6 +151,7 @@ def bounds(meshes):
 
 def main():
     args = arguments()
+    load_underwear(args.underwear)
     for obj in list(bpy.data.objects):
         bpy.data.objects.remove(obj, do_unlink=True)
     scene = bpy.context.scene
