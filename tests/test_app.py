@@ -238,3 +238,11 @@ def test_a_held_out_outfit_starts_as_a_first_fit_and_resumes_without_starting_ag
     calls = (place['runs']/'first'/'args.txt').read_text().splitlines()
     assert '--fresh' in calls[0] and '--fresh' not in calls[1] and all('--test-fit' in c for c in calls)
     assert app.WONDER_ALLOWANCE_USD >= 1600 * 4e-6 + 3000 * 20e-6     # covers one review's estimate
+
+
+def test_jobs_from_a_frozen_app_run_the_frozen_copy(monkeypatch):
+    monkeypatch.setattr(config, 'frozen_record', lambda: None)
+    assert app.default_command()[1:] == ['-m', 'fittedperfection']
+    monkeypatch.setattr(config, 'frozen_record', lambda: {'commit': 'abc'})
+    command = app.default_command()
+    assert command[1].endswith('run_frozen.py') and len(command) == 2

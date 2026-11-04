@@ -102,11 +102,20 @@ def archive_for(request):
     return entry['path'], entry['sha256']
 
 
+def default_command():
+    """How a job runs the pipeline: through this frozen copy's launcher when the app itself runs frozen (so a
+    submission run uses exactly the frozen code), else the working package."""
+    if config.frozen_record() is not None:
+        from .freeze import LAUNCHER
+        return [sys.executable, str(Path(__file__).resolve().parents[1]/LAUNCHER)]
+    return [sys.executable, '-m', 'fittedperfection']
+
+
 class Jobs:
     """The one job the app runs at a time, and what the page needs to follow it."""
 
     def __init__(self, command=None):
-        self._command = command or [sys.executable, '-m', 'fittedperfection']
+        self._command = command or default_command()
         self._lock = threading.Lock()
         self.job = None                                            # {'name', 'archive', 'process', 'allowance', ...}
 
