@@ -56,6 +56,7 @@ FAKE_PIPELINE = textwrap.dedent('''
     name, allowance = args[args.index('--name') + 1], float(args[args.index('--allow-spend') + 1])
     folder = Path(os.environ['FP_TEST_RUNS'])/name
     folder.mkdir(parents=True, exist_ok=True)
+    (folder/'args.txt').open('a').write(' '.join(args) + chr(10))
     done = {'status': 'complete', 'seconds': 0.1}
     time.sleep(float(os.environ.get('FP_TEST_SLEEP', '0')))
     if allowance < 0.4:
@@ -139,7 +140,7 @@ def test_a_new_outfit_starts_with_nothing_allowed_asks_then_reuses_the_run(place
     jobs.approve(wonder=True)
     status = wait_until_done(jobs)
     run = json.loads((place['runs']/'fresh-fit'/'run.json').read_text())
-    assert status['state'] == 'complete' and 0.45 <= run['allowance'] <= 0.46     # rounded up, never down
+    assert status['state'] == 'complete' and 0.47 <= run['allowance'] <= 0.48     # rounded up, never down
 
 
 def test_one_job_at_a_time_and_cancel(place, monkeypatch):
@@ -222,3 +223,18 @@ def test_a_back_answer_is_recorded_and_the_run_stops_saying_so(facing_place):
     status = wait_until_done(jobs)
     assert status['state'] == 'stopped' and status['facing'] is None
     assert any('FacingRejected' in (s.get('reason') or '') for s in status['stages'])
+
+
+def test_a_held_out_outfit_starts_as_a_first_fit_and_resumes_without_starting_again(place, monkeypatch):
+    data = archive_bytes()
+    monkeypatch.setattr(config, 'outfits', lambda: {'secret': {'split': 'test-fits', 'sha256': hashlib.sha256(data)
+                                                               .hexdigest(), 'path': place['uploads']/'x.zip'}})
+    answer = store(data)
+    jobs = app.Jobs(place['command'])
+    jobs.start({'upload': answer['upload'], 'name': 'first', 'test_fit': True})
+    assert wait_until_done(jobs)['state'] == 'needs_spend'
+    jobs.approve(wonder=True)
+    wait_until_done(jobs)
+    calls = (place['runs']/'first'/'args.txt').read_text().splitlines()
+    assert '--fresh' in calls[0] and '--fresh' not in calls[1] and all('--test-fit' in c for c in calls)
+    assert app.WONDER_ALLOWANCE_USD >= 1600 * 4e-6 + 3000 * 20e-6     # covers one review's estimate

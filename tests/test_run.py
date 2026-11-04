@@ -140,6 +140,25 @@ def test_fresh_card_exists_even_when_a_stage_stops(runs, garment):
     assert json.loads((runs/'f/provenance.json').read_text())['garment file'] == 'garment.zip'
 
 
+def test_a_stopped_first_fit_resumes_as_the_same_first_fit(runs, garment):
+    attempts = []
+
+    def asks_once(ctx, out):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise RuntimeError('stopped to ask for spending')
+        (out/'out.txt').write_text('done')
+    stages = (Stage('a', 'a', asks_once, garment=True),)
+    with pytest.raises(RuntimeError):
+        Run(runs/'f', stages).execute(garment, 'f', fresh=True)
+    started = json.loads((runs/'f/provenance.json').read_text())['started']
+    Run(runs/'f', stages).execute(garment, 'f')                     # restarted without --fresh, as the app does
+    card = json.loads((runs/'f/provenance.json').read_text())
+    assert card['started'] == started and 'finished' in card and len(card['resumed']) == 1
+    with pytest.raises(RunError, match='not a first fit'):           # a second first fit is still refused
+        Run(runs/'g', stages).execute(garment, 'g', fresh=True)
+
+
 def test_sealed_stage_cannot_use_network_or_programs(runs, garment):
     def network(ctx, out):
         socket.socket()

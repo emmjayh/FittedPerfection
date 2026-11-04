@@ -24,7 +24,7 @@ from . import config, confirm, intake
 from .stages import NAMES
 
 MAX_UPLOAD_BYTES = 500_000_000
-WONDER_ALLOWANCE_USD = 0.05          # one Muse Wonder fit review, rounded up from the client's estimate
+WONDER_ALLOWANCE_USD = 0.07          # one Muse Wonder fit review (3000-token reply), rounded up from the client's estimate
 PICTURES = {'views': 'analysis/views/front.png', 'label': 'labels/review.png', 'review': 'review/sheet-front.png'}
 LOG_LINES = 40
 
@@ -127,6 +127,8 @@ class Jobs:
             command = list(self._command) + ['run', str(archive), '--name', name, '--allow-spend', f'{allowance:.4f}']
             if held_out(sha):
                 command.append('--test-fit')
+                if not (config.runs_folder()/name).exists():
+                    command.append('--fresh')            # a held-out outfit's first fit: refuse seen bytes, keep provenance
             log.parent.mkdir(parents=True, exist_ok=True)
             stream = open(log, 'a', encoding='utf-8')
             process = subprocess.Popen(command, stdout=stream, stderr=subprocess.STDOUT, cwd=str(config.root()))
