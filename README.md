@@ -5,24 +5,6 @@ its own rig. The fit is local, deterministic maths. Meta's SAM 3.1 labels the ou
 beforehand, and Muse Wonder reviews the results afterwards. Every fit is a draft until a
 person reviews it. Full spec: [docs/SPEC.md](docs/SPEC.md).
 
-**Status:** steps 1–2 are done (foundations, target bodies) and step 3 is under way. **Intake**
-is built: it unpacks the archive safely, reads which way the outfit faces from its feet, and
-writes `full/GARMENT.glb` (every face) plus `full/CAGE.glb` (about 40k faces) in the canonical
-frame. Feet partly hidden by cloth give a *provisional* facing, which bind must confirm from
-the shoe labels. **Views** is built too: a 72-frame orthographic turntable plus top and bottom stills of
-the cage, each with a face-ID image (which cage triangle is visible at every pixel), and the
-turntable as `orbit.mp4` for SAM. Every run checks that each pixel lies on the triangle it names.
-**Vision** is built: for each of the 42 vocabulary phrases, SAM 3.1 (Meta Model API) segments the
-turntable video, keeping each part's id all the way round, plus the top and bottom stills. That's
-126 requests, about $0.81 per outfit. Every answer is cached in `runs/_cache/sam/`, so reruns are free
-and identical; the cache is keyed by picture content, not file bytes. **Label** is built: it turns
-the masks into one part label per cage face (where masks overlap the smaller one wins; skin is a
-separate layer confirmed by colour). The labels are combined across all views and smoothed over the
-mesh, then rules apply: legs split at the crotch, open torso cloth hangs, trims take their host's
-label, and sides left/right. **Bind** is built: it measures sleeve and leg centrelines, shoulders,
-the crotch (checked against the 0.59 × shoulder-height prior), feet from the shoes alone (which also
-confirms a provisional facing, or refuses the outfit), knees only when both legs agree, and the
-legwear length class. The fit isn't built yet, so a run stops after bind.
 
 ## Setup
 
